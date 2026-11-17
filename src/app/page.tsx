@@ -1121,7 +1121,7 @@ export default function Home() {
                       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#b7f36b]/10 text-[#b7f36b]"><Bot size={20} /></span>
                       <div><h2 className="text-sm font-semibold">AI Monitoring ESP32</h2><p className="mt-1 text-[11px] text-[#89968e]">Konteks sensor terbaru dari MongoDB</p></div>
                     </div>
-                    <span className="rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] px-2.5 py-1 text-[10px] text-[#c7fa8f]">NVIDIA NIM · Free</span>
+                    <span className="rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] px-2.5 py-1 text-[10px] text-[#c7fa8f]">Sensor + AI</span>
                   </div>
                   <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
                     {chatEntries.length === 0 && (

@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import {
+  getCommandsCollection,
   getReadingsCollection,
-  type SensorReading,
 } from "@/lib/mongodb";
 import {
+  getLightCommandClarification,
   getLightCommandIntent,
+  getLightStatusAnswer,
+  getLightStatusTarget,
+  getParkingStatusAnswer,
+  needsLightCommandClarification,
   type ChatRouteAction,
 } from "@/lib/chat-command-routing";
 import { sensorAssistantPrompt } from "@/lib/chat-prompt";
@@ -71,35 +76,6 @@ function getAssistantText(result: unknown) {
     (typeof message?.refusal === "string" ? message.refusal.trim() : "");
 
   return { responseBody, firstChoice, message, content };
-}
-
-function getParkingAvailabilityAnswer(
-  question: string,
-  reading: SensorReading | null,
-) {
-  const asksAboutParking =
-    /\b(?:parkir|parkiran|parkitan|slot)\b/i.test(question);
-  const asksAboutAvailability =
-    /\b(?:kosong|tersedia|sisa|berapa|jumlah|available)\b/i.test(question);
-
-  if (!asksAboutParking || !asksAboutAvailability) return null;
-  if (!reading) {
-    return "Belum ada data parkir terbaru dari ESP32, jadi jumlah slot kosong belum bisa dipastikan.";
-  }
-
-  const availableSlots = [
-    { name: "A", occupied: reading.parking.slotBOccupied },
-    { name: "B", occupied: reading.parking.slotAOccupied },
-    { name: "C", occupied: reading.parking.slotCOccupied },
-  ]
-    .filter((slot) => !slot.occupied)
-    .map((slot) => slot.name);
-
-  if (availableSlots.length === 0) {
-    return "Saat ini semua 3 slot parkir terisi.";
-  }
-
-  return `Saat ini ada ${availableSlots.length} slot parkir kosong: ${availableSlots.join(", ")}.`;
 }
 
 function createNvidiaRequestBody(
@@ -196,7 +172,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const lightIntent = getLightCommandIntent(body.message.trim());
+  const history = isChatHistory(body.history)
+    ? body.history
+        .slice(-maxHistoryMessages)
+        .map((message) => ({
+          ...message,
+          content: message.content.slice(0, maxHistoryMessageCharacters),
+        }))
+    : [];
+  const lightIntent = getLightCommandIntent(body.message.trim(), history);
   if (lightIntent) {
     const isRgb = lightIntent.type === "rgb";
     const routeAction: ChatRouteAction = isRgb
@@ -215,6 +199,17 @@ export async function POST(request: Request) {
     );
   }
 
+  if (needsLightCommandClarification(body.message.trim(), history)) {
+    return NextResponse.json(
+      {
+        answer: getLightCommandClarification(),
+        model: "device-command",
+        refreshedAt: new Date().toISOString(),
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   try {
     const readings = await getReadingsCollection().then((collection) =>
       collection.find({ deviceId: "esp32-smart-city" })
@@ -224,7 +219,7 @@ export async function POST(request: Request) {
     );
     const latest = readings[0] ?? null;
     const refreshedAt = new Date();
-    const parkingAnswer = getParkingAvailabilityAnswer(body.message, latest);
+    const parkingAnswer = getParkingStatusAnswer(body.message, latest);
     if (parkingAnswer) {
       return NextResponse.json(
         {
@@ -235,6 +230,29 @@ export async function POST(request: Request) {
         },
         { headers: { "Cache-Control": "no-store" } },
       );
+    }
+
+    if (getLightStatusTarget(body.message, history)) {
+      const command = await getCommandsCollection().then((collection) =>
+        collection.findOne({ _id: "esp32-smart-city" }),
+      );
+      const answer = getLightStatusAnswer(
+        body.message,
+        latest,
+        command,
+        history,
+      );
+      if (answer) {
+        return NextResponse.json(
+          {
+            answer,
+            model: "sensor-data",
+            refreshedAt: refreshedAt.toISOString(),
+            readingAt: latest?.recordedAt.toISOString() ?? null,
+          },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
     }
 
     const formatReadingForAssistant = (reading: (typeof readings)[number]) => ({
@@ -256,14 +274,6 @@ export async function POST(request: Request) {
       recentReadings: readings.map(formatReadingForAssistant),
     };
 
-    const history = isChatHistory(body.history)
-      ? body.history
-          .slice(-maxHistoryMessages)
-          .map((message) => ({
-            ...message,
-            content: message.content.slice(0, maxHistoryMessageCharacters),
-          }))
-      : [];
     const messages = [
       { role: "system", content: sensorAssistantPrompt },
       {
