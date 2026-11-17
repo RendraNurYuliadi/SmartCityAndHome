@@ -3,6 +3,10 @@ import {
   getReadingsCollection,
   type SensorReading,
 } from "@/lib/mongodb";
+import {
+  getLightCommandIntent,
+  type ChatRouteAction,
+} from "@/lib/chat-command-routing";
 import { sensorAssistantPrompt } from "@/lib/chat-prompt";
 
 export const runtime = "nodejs";
@@ -189,6 +193,25 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Pesan wajib diisi (maksimal 1500 karakter) dan riwayat chat harus valid." },
       { status: 400 },
+    );
+  }
+
+  const lightIntent = getLightCommandIntent(body.message.trim());
+  if (lightIntent) {
+    const isRgb = lightIntent.type === "rgb";
+    const routeAction: ChatRouteAction = isRgb
+      ? { type: "set-rgb-led", on: lightIntent.on }
+      : { type: "set-street-light", on: lightIntent.on };
+    return NextResponse.json(
+      {
+        answer: `Baik, saya akan ${lightIntent.on ? "menyalakan" : "mematikan"} ${
+          isRgb ? "lampu RGB/LED" : "lampu jalan melalui Web ON/OFF"
+        } sekarang.`,
+        routeAction,
+        model: "device-command",
+        refreshedAt: new Date().toISOString(),
+      },
+      { headers: { "Cache-Control": "no-store" } },
     );
   }
 

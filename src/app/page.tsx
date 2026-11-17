@@ -40,6 +40,7 @@ import {
 } from "recharts";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { ChatRouteAction } from "@/lib/chat-command-routing";
 import type { SensorReading } from "@/lib/mongodb";
 
 type Reading = Omit<SensorReading, "recordedAt"> & {
@@ -527,18 +528,24 @@ export default function Home() {
     [readings],
   );
 
+  const persistDeviceCommands = async (updates: Partial<DeviceCommands>) => {
+    const response = await fetch("/api/commands", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    const result: DeviceCommands & { error?: string } = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Perintah perangkat gagal dikirim.");
+    }
+    setDeviceCommands(result);
+    setError("");
+  };
+
   const updateDeviceCommands = async (updates: Partial<DeviceCommands>) => {
     setLoadingCommand(true);
     try {
-      const response = await fetch("/api/commands", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      const result: DeviceCommands & { error?: string } = await response.json();
-      if (!response.ok) throw new Error(result.error || "Perintah perangkat gagal dikirim.");
-      setDeviceCommands(result);
-      setError("");
+      await persistDeviceCommands(updates);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Gagal mengirim perintah.");
     } finally {
@@ -584,9 +591,17 @@ export default function Home() {
     }
   };
 
-  const sendChatMessage = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const message = chatInput.trim();
+  const appendAssistantMessage = (content: string) => {
+    setChatEntries((current) =>
+      [
+        ...current,
+        { role: "assistant" as const, content },
+      ].slice(-60),
+    );
+  };
+
+  const sendChatMessageText = async (rawMessage: string) => {
+    const message = rawMessage.trim();
     if (!message || chatLoading) return;
 
     const history: ChatEntry[] = chatEntries
@@ -611,32 +626,58 @@ export default function Home() {
       const result: {
         answer?: string;
         error?: string;
+        routeAction?: ChatRouteAction;
       } = await response.json();
       const answer = result.answer;
       if (!response.ok || !answer) {
         throw new Error(result.error || "AI gagal menjawab.");
       }
 
-      setChatEntries((current) => [
-        ...current,
-        { role: "assistant" as const, content: answer },
-      ].slice(-60));
+      const routeAction = result.routeAction;
+      appendAssistantMessage(answer);
+
+      if (
+        routeAction?.type === "set-rgb-led" ||
+        routeAction?.type === "set-street-light"
+      ) {
+        await new Promise<void>((resolve) => {
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => resolve());
+          });
+        });
+        const command =
+          routeAction.type === "set-rgb-led"
+            ? { rgbLedOn: routeAction.on }
+            : { streetLightOverride: routeAction.on };
+        try {
+          await persistDeviceCommands(command);
+          const target =
+            routeAction.type === "set-rgb-led" ? "lampu RGB/LED" : "lampu jalan";
+          appendAssistantMessage(
+            `Perintah Web ${routeAction.on ? "ON" : "OFF"} untuk ${target} sudah tersimpan. ESP32 akan mengambilnya saat polling berikutnya.`,
+          );
+          void refresh();
+        } catch {
+          appendAssistantMessage(
+            "Maaf, perintah belum berhasil disimpan. Silakan coba lagi.",
+          );
+        }
+        return;
+      }
+
       void refresh();
     } catch {
-      setChatEntries((current) =>
-        [
-          ...current,
-          {
-            role: "assistant" as const,
-            content:
-              "Maaf, asisten belum bisa menjawab saat ini. Silakan coba lagi sebentar lagi. Data sensor terbaru tetap bisa dilihat di Data Dashboard.",
-            transient: true,
-          },
-        ].slice(-60),
+      appendAssistantMessage(
+        "Maaf, asisten belum bisa menjawab saat ini. Silakan coba lagi sebentar lagi. Data sensor terbaru tetap bisa dilihat di Data Dashboard.",
       );
     } finally {
       setChatLoading(false);
     }
+  };
+
+  const sendChatMessage = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void sendChatMessageText(chatInput);
   };
 
   const selectPage = (nextPage: Page) => {
@@ -1105,7 +1146,7 @@ export default function Home() {
                       </div>
                     ))}
                     {chatLoading && (
-                      <div className="flex items-center gap-2 text-xs text-[#a4b09f]"><LoaderCircle size={15} className="animate-spin" /> Mengambil data sensor terbaru lalu bertanya ke NVIDIA NIM...</div>
+                      <div className="flex items-center gap-2 text-xs text-[#a4b09f]"><LoaderCircle size={15} className="animate-spin" /> Memproses pesan dan menjalankan perintah bila diminta...</div>
                     )}
                   </div>
                   <form onSubmit={sendChatMessage} className="border-t border-white/[0.07] p-4">

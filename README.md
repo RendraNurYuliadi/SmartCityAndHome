@@ -55,6 +55,8 @@ Chatbot menjawab pertanyaan tentang kondisi perangkat dan sensor. Tombol saran d
 
 Percakapan hanya disimpan sementara di halaman browser dan tidak menjadi arsip pesan sensor. Request hanya membawa delapan pesan percakapan terakhir (maksimal 1.200 karakter per pesan) agar chat panjang tidak membengkakkan konteks. Jika API key terkena rate limit/kuota atau ditolak, server mencoba key berikutnya yang diatur. Jika seluruh layanan gagal, UI menampilkan pesan bantuan singkat; detail teknis tetap dicatat di log server. Fitur ini membutuhkan setidaknya satu `NVIDIA_NIM_API_KEY_1` sampai `NVIDIA_NIM_API_KEY_5` pada server.
 
+Chat memiliki tiga rute: RAG sebagai default untuk pertanyaan sensor/perangkat; perintah eksplisit lampu RGB/LED yang mengirim Web ON/OFF; dan perintah eksplisit lampu jalan yang mengirim Web ON/OFF, termasuk mengganti mode otomatis sebelumnya. Rute perintah menjawab lebih dulu, lalu aplikasi menyimpan perintah melalui API. Mode otomatis hanya tersedia di menu Kontrol ESP32; chat tidak mengaktifkan atau menawarkan mode tersebut. Pesan konfirmasi menandakan perintah tersimpan, dan ESP32 menerapkannya saat polling berikutnya.
+
 #### Galeri Noventra
 
 Menampilkan pengenalan proyek, penjelasan kemampuan pantau/otomatisasi/kendali, sembilan foto prototipe beserta keterangannya, dan profil empat anggota Kelompok 3.
