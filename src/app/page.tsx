@@ -28,7 +28,6 @@ import {
   Vibrate,
   Wifi,
   WifiOff,
-  X,
 } from "lucide-react";
 import {
   CartesianGrid,
@@ -62,7 +61,11 @@ type InboxMessage = {
   occurredAt: string;
   isRead: boolean;
 };
-type ChatEntry = { role: "user" | "assistant"; content: string };
+type ChatEntry = {
+  role: "user" | "assistant";
+  content: string;
+  transient?: boolean;
+};
 
 const pageArtwork: Record<Page, { image: string; kicker: string; description: string }> = {
   dashboard: {
@@ -458,7 +461,6 @@ export default function Home() {
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const [chatError, setChatError] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const enteringDashboard = true;
@@ -587,11 +589,18 @@ export default function Home() {
     const message = chatInput.trim();
     if (!message || chatLoading) return;
 
-    const history = chatEntries.slice(-8);
-    setChatEntries((current) => [...current, { role: "user", content: message }]);
+    const history: ChatEntry[] = chatEntries
+      .filter((entry) => !entry.transient)
+      .slice(-8)
+      .map((entry) => ({
+        role: entry.role,
+        content: entry.content.slice(0, 1200),
+      }));
+    setChatEntries((current) =>
+      [...current, { role: "user" as const, content: message }].slice(-60),
+    );
     setChatInput("");
     setChatLoading(true);
-    setChatError("");
 
     try {
       const response = await fetch("/api/chat", {
@@ -603,17 +612,28 @@ export default function Home() {
         answer?: string;
         error?: string;
       } = await response.json();
-      if (!response.ok || !result.answer) {
+      const answer = result.answer;
+      if (!response.ok || !answer) {
         throw new Error(result.error || "AI gagal menjawab.");
       }
 
       setChatEntries((current) => [
         ...current,
-        { role: "assistant", content: result.answer! },
-      ]);
+        { role: "assistant" as const, content: answer },
+      ].slice(-60));
       void refresh();
-    } catch (cause) {
-      setChatError(cause instanceof Error ? cause.message : "Gagal menghubungi AI.");
+    } catch {
+      setChatEntries((current) =>
+        [
+          ...current,
+          {
+            role: "assistant" as const,
+            content:
+              "Maaf, asisten belum bisa menjawab saat ini. Silakan coba lagi sebentar lagi. Data sensor terbaru tetap bisa dilihat di Data Dashboard.",
+            transient: true,
+          },
+        ].slice(-60),
+      );
     } finally {
       setChatLoading(false);
     }
@@ -1088,7 +1108,6 @@ export default function Home() {
                       <div className="flex items-center gap-2 text-xs text-[#a4b09f]"><LoaderCircle size={15} className="animate-spin" /> Mengambil data sensor terbaru lalu bertanya ke NVIDIA NIM...</div>
                     )}
                   </div>
-                  {chatError && <p className="mx-5 mb-2 flex items-center gap-2 text-xs text-[#f3b58a]"><X size={14} /> {chatError}</p>}
                   <form onSubmit={sendChatMessage} className="border-t border-white/[0.07] p-4">
                     <div className="flex gap-2 rounded-xl border border-white/[0.1] bg-[#0b100d] p-2 focus-within:border-[#b7f36b]/35">
                       <input

@@ -51,9 +51,9 @@ Gunakan **Tandai dibaca** pada sebuah pesan atau **Tandai semua dibaca** untuk m
 
 #### Chatbot AI
 
-Chatbot menjawab pertanyaan tentang kondisi perangkat dan sensor. Tombol saran dapat mengisi pertanyaan contoh; kirim pertanyaan melalui kolom di bagian bawah. Setiap pertanyaan mengambil snapshot hingga lima pembacaan terbaru dari MongoDB, lalu mengirim konteks sensor dan riwayat percakapan langsung ke NVIDIA NIM. Jawaban mendukung Markdown.
+Chatbot menjawab pertanyaan tentang kondisi perangkat dan sensor. Tombol saran dapat mengisi pertanyaan contoh; kirim pertanyaan melalui kolom di bagian bawah. Setiap pertanyaan mengambil snapshot hingga lima pembacaan terbaru dari MongoDB. Pertanyaan ketersediaan parkir dijawab langsung dari data sensor; pertanyaan lain dikirim ke NVIDIA NIM, dengan satu model Free Endpoint cadangan bila model utama tidak menghasilkan teks. Jawaban mendukung Markdown.
 
-Percakapan hanya disimpan sementara di halaman browser dan tidak menjadi arsip pesan sensor. Jika API key terkena rate limit/kuota atau ditolak, server mencoba key berikutnya yang diatur. Fitur ini membutuhkan setidaknya satu `NVIDIA_NIM_API_KEY_1` sampai `NVIDIA_NIM_API_KEY_5` pada server.
+Percakapan hanya disimpan sementara di halaman browser dan tidak menjadi arsip pesan sensor. Request hanya membawa delapan pesan percakapan terakhir (maksimal 1.200 karakter per pesan) agar chat panjang tidak membengkakkan konteks. Jika API key terkena rate limit/kuota atau ditolak, server mencoba key berikutnya yang diatur. Jika seluruh layanan gagal, UI menampilkan pesan bantuan singkat; detail teknis tetap dicatat di log server. Fitur ini membutuhkan setidaknya satu `NVIDIA_NIM_API_KEY_1` sampai `NVIDIA_NIM_API_KEY_5` pada server.
 
 #### Galeri Noventra
 
