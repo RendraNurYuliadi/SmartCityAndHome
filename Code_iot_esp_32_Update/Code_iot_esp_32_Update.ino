@@ -17,7 +17,7 @@ const char* DEVICE_ID = "esp32-smart-city";
 #define API_USE_HTTPS 1
 
 const unsigned long INTERVAL_KIRIM_API = 1000UL;
-const unsigned long INTERVAL_CEK_PERINTAH = 1000UL;
+const unsigned long INTERVAL_CEK_PERINTAH = 250UL;
 const unsigned long INTERVAL_WIFI_ULANG = 10000UL;
 const unsigned long INTERVAL_ULTRASONIC_US = 60000UL;
 const unsigned long TIMEOUT_ULTRASONIC_US = 30000UL;
@@ -686,6 +686,14 @@ void tugasJaringan(void* parameter) {
       kirimDataSensorKeAPI(paket);
     }
 
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
+void tugasPerintah(void* parameter) {
+  (void)parameter;
+
+  for (;;) {
     cekPerintahLampuDariAPI();
     vTaskDelay(pdMS_TO_TICKS(10));
   }
@@ -1266,6 +1274,19 @@ void setup() {
   if (antreanTelemetri == nullptr || antreanPerintah == nullptr) {
     Serial.println("Gagal membuat antrean jaringan; API tidak dijalankan.");
     return;
+  }
+
+  BaseType_t statusTaskPerintah = xTaskCreatePinnedToCore(
+    tugasPerintah,
+    "tugasPerintah",
+    8192,
+    nullptr,
+    2,
+    nullptr,
+    0
+  );
+  if (statusTaskPerintah != pdPASS) {
+    Serial.println("Gagal membuat task perintah; kontrol web tidak dijalankan.");
   }
 
   BaseType_t statusTask = xTaskCreatePinnedToCore(

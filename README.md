@@ -1,13 +1,77 @@
 # Smart Home & City IoT
 
-Dashboard Next.js untuk menerima telemetri ESP32, menyimpan 50 pembacaan terbaru di MongoDB, serta mengendalikan LED RGB, lampu jalan berbasis LDR, dan servo suhu DHT11.
+Noventra adalah aplikasi web monitoring dan kontrol untuk prototipe Smart Home & City. Aplikasi menerima telemetri ESP32, menyimpan hingga 50 pembacaan terbaru di MongoDB, menampilkan kondisi sensor dan peringatan, serta menyediakan kontrol perangkat dan chatbot AI.
 
 Menu Galeri Noventra menampilkan dokumentasi prototipe proyek IoT Kelompok 3, profil empat anggota, dan sembilan foto proyek dari folder `public/images`.
+
+## Tentang aplikasi
+
+Tujuan aplikasi ini adalah menyatukan data sensor dan beberapa kendali perangkat ESP32 dalam satu dashboard web. Sistem prototipe memantau suhu, kelembapan, parkir, gerakan, cahaya, jarak, level air, dan getaran. ESP32 juga mengendalikan aktuator seperti palang, lampu jalan, lampu lalu lintas, servo suhu, LED RGB, dan alarm.
+
+Alamat web yang dikonfigurasi pada firmware saat ini adalah [smarcityandhome.vercel.app](https://smarcityandhome.vercel.app/). Aplikasi dapat dibuka melalui browser desktop maupun ponsel. Saat pertama dibuka, halaman pengantar Noventra tampil sekitar lima detik sebelum dashboard muncul. Aplikasi saat ini tidak meminta login.
+
+### Cara menggunakan web
+
+1. Buka alamat web di atas dan tunggu dashboard tampil.
+2. Periksa indikator **Sistem online** di header dan **API terhubung** di sidebar untuk status API. Status ESP32 **Terhubung** berarti sudah ada pembacaan tersimpan; cocokkan waktu pembaruan terakhir untuk melihat kapan data itu diterima.
+3. Pilih menu di sidebar untuk berpindah halaman. Di ponsel, buka sidebar dengan tombol menu.
+4. Gunakan **Perbarui data** untuk meminta data terbaru secara manual. Dashboard juga mengambil data otomatis setiap 1,5 detik.
+5. Untuk mengubah keluaran perangkat, buka **Kontrol ESP32** dan pilih kendali yang sesuai. Pastikan ESP32 aktif dan terhubung ke server.
+
+### Menu, section, dan widget
+
+#### Data Dashboard
+
+Halaman ringkasan kondisi terbaru perangkat. Widget yang tersedia:
+
+- **Kartu status ESP32 Smart City** menampilkan ID perangkat, status terhubung/menunggu data, dan waktu pembacaan terakhir yang diterima server.
+- **Suhu udara** dan **Kelembapan** menampilkan pembacaan terbaru DHT11. Tanda `--` berarti data belum tersedia.
+- **Parkir terisi** menampilkan jumlah kendaraan dan jumlah slot yang masih tersedia dari tiga slot.
+- **Level air** menampilkan nilai ADC sensor water level dan memberi penanda jika firmware mendeteksi banjir.
+- **Tren suhu & kelembapan** menggambarkan maksimal 50 pembacaan terbaru. Sumbu waktu mengikuti waktu data diterima server.
+- **Status sensor** menampilkan kondisi getaran, banjir, lampu jalan, gerakan PIR, dan LED RGB.
+- **Ketersediaan slot parkir** memperlihatkan status Slot A, B, dan C secara terpisah. Label slot A/B pada tampilan sudah mengikuti pemetaan khusus dashboard.
+- **Sinkronisasi** di bagian bawah mengingatkan interval pembaruan dan batas penyimpanan pembacaan.
+
+#### Kontrol ESP32
+
+Berisi tiga kartu kendali:
+
+- **Lampu RGB** menampilkan kondisi LED biru GPIO19 dan tombol untuk menyalakan atau mematikannya dari web.
+- **Lampu jalan** menampilkan status lampu, nilai LDR, dan mode kontrol. Pilih **Otomatis** untuk mengikuti LDR, **Web ON** untuk menyalakan, atau **Web OFF** untuk mematikan.
+- **Servo suhu** menampilkan posisi servo dan suhu DHT11. Pilih **Otomatis** untuk mengikuti aturan firmware, **Web ON** untuk membuka, atau **Web OFF** untuk menutup.
+
+Pada lampu jalan dan servo suhu, pilihan **Web ON/OFF** adalah override. Pilih **Otomatis** lagi untuk menyerahkan kendali ke sensor. Perubahan web diteruskan ke ESP32 melalui API; hasil fisiknya bergantung pada ESP32 dan koneksinya.
+
+#### Message
+
+Inbox ini berisi peringatan yang dibuat ketika kondisi berubah menjadi aktif: banjir, getaran, gerakan PIR, suhu di atas 28 °C, atau seluruh slot parkir terisi. Setiap kartu menampilkan judul, rincian, waktu kejadian, tingkat keparahan, dan status sudah/belum dibaca. Badge di sidebar menunjukkan jumlah yang belum dibaca.
+
+Gunakan **Tandai dibaca** pada sebuah pesan atau **Tandai semua dibaca** untuk memperbarui statusnya. API mengembalikan paling banyak 100 pesan terbaru. Peringatan dibuat saat transisi kondisi menjadi aktif, bukan pada setiap pembacaan selama kondisi tersebut masih aktif.
+
+#### Chatbot AI
+
+Chatbot menjawab pertanyaan tentang kondisi perangkat dan sensor. Tombol saran dapat mengisi pertanyaan contoh; kirim pertanyaan melalui kolom di bagian bawah. Setiap pertanyaan mengambil snapshot hingga lima pembacaan terbaru dari MongoDB, lalu mengirim konteks sensor dan riwayat percakapan langsung ke NVIDIA NIM. Jawaban mendukung Markdown.
+
+Percakapan hanya disimpan sementara di halaman browser dan tidak menjadi arsip pesan sensor. Jika API key terkena rate limit/kuota atau ditolak, server mencoba key berikutnya yang diatur. Fitur ini membutuhkan setidaknya satu `NVIDIA_NIM_API_KEY_1` sampai `NVIDIA_NIM_API_KEY_5` pada server.
+
+#### Galeri Noventra
+
+Menampilkan pengenalan proyek, penjelasan kemampuan pantau/otomatisasi/kendali, sembilan foto prototipe beserta keterangannya, dan profil empat anggota Kelompok 3.
+
+#### Elemen umum
+
+- **Sidebar** berisi kelima menu dan status koneksi API. Badge **Message** tampil jika ada pesan belum dibaca.
+- **Header halaman** menunjukkan nama halaman dan status online/offline.
+- **Perbarui data** meminta ulang data sensor, perintah, dan pesan.
+- Tampilan responsif menyesuaikan layar desktop dan ponsel.
+
+Tidak semua data yang dikirim firmware memiliki widget tersendiri. Jarak ultrasonik, status lampu lalu lintas, dan status palang tetap dikirim ke API/MongoDB, tetapi belum ditampilkan sebagai kartu khusus pada dashboard saat ini.
 
 ## Stack
 
 - Node.js 20.9 atau lebih baru (proyek ini memakai Node.js 22).
-- Next.js, React, Tailwind CSS, MongoDB Node.js Driver, dan Recharts.
+- Next.js, React, Tailwind CSS, MongoDB Node.js Driver, Recharts, dan NVIDIA NIM untuk chatbot.
 - MongoDB database: `smart_home_city`.
 - Collections: `sensor_readings` (capped, maksimum 50 dokumen) dan `device_commands`. Jika `sensor_readings` sudah ada sebagai collection biasa, data lamanya dipertahankan dan aplikasi menggunakan `sensor_readings_latest50` sebagai collection capped.
 
@@ -67,20 +131,21 @@ Collection pembacaan aktif adalah capped collection MongoDB dengan `max: 50`. Sa
 - `POST /api/commands` menerima satu atau beberapa field: `rgbLedOn` (`boolean`), `streetLightOverride` (`boolean | null`), dan `temperatureServoOverride` (`boolean | null`).
 - `GET /api/messages` — mengambil inbox dan jumlah pesan belum dibaca.
 - `POST /api/messages` dengan `{"ids":["<message-id>"]}` atau `{"all":true}` — menandai pesan sudah dibaca.
-- `POST /api/chat` — mengambil snapshot sensor langsung dari MongoDB lalu mengirim pertanyaan dan snapshot tersebut ke model AI gratis OpenRouter.
+- `POST /api/chat` — mengambil snapshot sensor langsung dari MongoDB lalu mengirim pertanyaan dan snapshot tersebut ke NVIDIA NIM.
 
 Pesan dibuat saat sensor berubah menjadi kondisi banjir, getaran, gerakan, suhu di atas 28 °C, atau parkir penuh. Dashboard memeriksa data dan badge pesan setiap 1,5 detik; membuka pesan menandainya sudah dibaca dan mengurangi angka badge.
 
-Dashboard memeriksa API setiap 1,5 detik. ESP32 mengirim telemetri setiap 1 detik dan memeriksa perintah setiap 1 detik. Palang PIR dan ultrasonik kembali tertutup 3 detik setelah pemicunya berhenti. Override web untuk lampu jalan atau servo suhu diterapkan langsung tanpa jeda; mode otomatis sensor tetap tersedia. Polling ini juga kompatibel dengan deployment serverless Vercel tanpa koneksi WebSocket permanen.
+Dashboard memeriksa API setiap 1,5 detik. ESP32 mengirim telemetri setiap 1 detik dan memeriksa perintah setiap 250 ms melalui task jaringan prioritas tinggi, terpisah dari pengiriman telemetri agar pengiriman data sensor tidak menahan kontrol web. Palang PIR dan ultrasonik kembali tertutup 3 detik setelah pemicunya berhenti. Override web untuk lampu jalan atau servo suhu diterapkan segera setelah perintah diterima; mode otomatis sensor tetap tersedia. Polling ini juga kompatibel dengan deployment serverless Vercel tanpa koneksi WebSocket permanen.
 
-## Chatbot OpenRouter gratis
+## Chatbot NVIDIA NIM
 
-Chatbot menggunakan router gratis [`openrouter/free`](https://openrouter.ai/docs/guides/routing/routers/free-router). Jika model router berhasil dipanggil tetapi tidak menghasilkan teks, server mencoba model gratis NVIDIA Nemotron sebagai fallback; tidak ada model berbayar yang digunakan. Model gratis dapat memiliki batas/rate limit dan kadang tidak tersedia; jika kedua model sedang sibuk, coba lagi nanti.
+Chatbot mengirim permintaan langsung ke [NVIDIA NIM Chat Completions API](https://docs.api.nvidia.com/nim/reference/llm-apis). Model dibatasi ke daftar chat **Free Endpoint** yang diverifikasi dari katalog NVIDIA: `nvidia/nemotron-3.5-lightning-30b-a3b` (default), `nvidia/nemotron-3.5-bolt-e4b`, `nvidia/nemotron-3-ultra-550b-a55b`, `stepfun-ai/step-5-preview`, dan `z-ai/glm-5.3-flash`. Pilih dengan `NVIDIA_NIM_MODEL`. Label “Free Endpoint” adalah filter katalog; model ID NIM tidak memakai akhiran `/free`.
 
-1. Buat API key OpenRouter baru di [OpenRouter API Keys](https://openrouter.ai/settings/keys). Jangan gunakan key yang pernah ditempel di chat; buat ulang jika key tersebut pernah aktif.
-2. Di Vercel → Project → Settings → Environment Variables, tambahkan `OPENROUTER_API_KEY` dengan key baru sebagai value. Jangan tambahkan `NEXT_PUBLIC_` pada nama variabel.
-3. Pilih Production dan Preview, simpan, lalu redeploy agar variable diterapkan.
-4. Untuk penggunaan lokal, tambahkan `OPENROUTER_API_KEY=<key-baru>` ke `.env.local` yang diabaikan Git.
+Atur hingga lima API key secara berurutan. Jika NVIDIA NIM menolak key (401/403) atau melaporkan kuota/rate limit (429 atau kode limit yang dikenali), server mencoba key berikutnya untuk permintaan yang sama. Setiap permintaan baru mulai lagi dari key pertama; jika batas habis, key tersebut akan dilewati lagi pada permintaan berikutnya. Key yang kosong dilewati.
+
+Di Vercel → Project → Settings → Environment Variables, tambahkan `NVIDIA_NIM_API_KEY_1` hingga `NVIDIA_NIM_API_KEY_5` sesuai key yang dimiliki, dan `NVIDIA_NIM_MODEL` (opsional). Jangan tambahkan prefix `NEXT_PUBLIC_`. Pilih environment yang dipakai, simpan, lalu redeploy. Untuk lokal, isi variabel yang sama pada `.env.local` dan restart server. File `.env.example` menunjukkan nama semua variabel; tempel key hanya ke environment privat, bukan ke Git, browser, firmware, atau chat.
+
+Key tambahan tidak menjamin penambahan kuota: NVIDIA dapat menerapkan limit pada akun/proyek yang sama, sehingga semua key tetap bisa terkena batas bersama. Gunakan hanya key yang diizinkan untuk proyek/akun tersebut.
 
 Key hanya dibaca server-side; tidak pernah dikirim ke browser. Setiap pertanyaan mengambil lima pembacaan ESP32 terbaru langsung dari MongoDB sebelum prompt dikirim. Prompt juga menjelaskan semua variabel, pin, logika sensor, dan ambang firmware.
 
@@ -88,16 +153,17 @@ Custom system prompt chatbot dapat diedit di `src/lib/chat-prompt.ts`. Instruksi
 
 API tidak memakai autentikasi sesuai kebutuhan proyek ini. Endpoint yang dipublikasikan dapat menerima data/perintah dari siapa saja; gunakan hanya pada jaringan/lingkungan yang sesuai.
 
-## Deploy ke Vercel (nanti)
+## Deploy ke Vercel
 
-1. Push folder proyek ke repository Git dan impor repository tersebut di Vercel.
+1. Untuk deployment baru atau pembaruan, push folder proyek ke repository Git dan impor/pilih repository tersebut di Vercel.
 2. Siapkan MongoDB yang bisa diakses publik dari Vercel, misalnya MongoDB Atlas. URI `mongodb://localhost:27017` hanya berlaku di komputer lokal dan **tidak dapat dipakai dari Vercel**.
 3. Isi Vercel Project → Settings → Environment Variables:
    - `MONGODB_URI`: connection string Atlas.
    - `MONGODB_DB`: `smart_home_city`.
-   - `OPENROUTER_API_KEY`: API key OpenRouter (server-side, tanpa prefix `NEXT_PUBLIC_`).
+   - `NVIDIA_NIM_API_KEY_1` sampai `NVIDIA_NIM_API_KEY_5`: API key NVIDIA NIM (server-side; isi key yang dimiliki, tanpa prefix `NEXT_PUBLIC_`).
+   - `NVIDIA_NIM_MODEL`: ID model NVIDIA NIM dari daftar Free Endpoint yang diizinkan; default `nvidia/nemotron-3.5-lightning-30b-a3b`.
 4. Pastikan akses jaringan/IP Vercel ke MongoDB diizinkan, lalu deploy. Collection capped dibuat otomatis pada request pertama.
-5. Ubah kedua URL firmware menjadi URL deployment HTTPS, lalu set `API_USE_HTTPS` ke `1`.
+5. Pastikan `API_READINGS_URL` dan `API_COMMANDS_URL` pada firmware menunjuk ke domain deployment HTTPS, lalu set `API_USE_HTTPS` ke `1`. Firmware saat ini dikonfigurasi ke `https://smarcityandhome.vercel.app`.
 
 ## Menghubungkan ESP32
 
@@ -115,4 +181,4 @@ Firmware mempertahankan sensor yang sudah ada pada sketch awal (ultrasonik, PIR,
 
 ESP32 klasik hanya mendukung Wi-Fi 2,4 GHz. Jika jaringan yang dipilih hanya berjalan pada 5 GHz, aktifkan/pilih SSID 2,4 GHz dari router atau hotspot; jaringan 2,4 GHz dan 5 GHz boleh memakai nama berbeda.
 
-> Saat nanti beralih ke Vercel, mode HTTPS firmware saat ini memakai `WiFiClientSecure::setInsecure()` untuk memudahkan pengujian. Untuk produksi, sebaiknya gunakan `setCACert()` dan root CA yang sesuai.
+> Mode HTTPS firmware saat ini memakai `WiFiClientSecure::setInsecure()` untuk memudahkan pengujian. Sebelum penggunaan produksi, sebaiknya validasi sertifikat server menggunakan `setCACert()` dan root CA yang sesuai.

@@ -5,9 +5,23 @@ import { sensorAssistantPrompt } from "@/lib/chat-prompt";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const freeModel = "openrouter/free";
-const fallbackFreeModel = "nvidia/nemotron-3.5-lightning:free";
+const nvidiaNimEndpoint = "https://integrate.api.nvidia.com/v1/chat/completions";
+const freeNvidiaNimChatModels = [
+  "nvidia/nemotron-3.5-lightning-30b-a3b",
+  "nvidia/nemotron-3.5-bolt-e4b",
+  "nvidia/nemotron-3-ultra-550b-a55b",
+  "stepfun-ai/step-5-preview",
+  "z-ai/glm-5.3-flash",
+] as const;
+const defaultNvidiaNimModel = "nvidia/nemotron-3.5-lightning-30b-a3b";
 const maxHistoryMessages = 10;
+const apiKeyVariableNames = [
+  "NVIDIA_NIM_API_KEY_1",
+  "NVIDIA_NIM_API_KEY_2",
+  "NVIDIA_NIM_API_KEY_3",
+  "NVIDIA_NIM_API_KEY_4",
+  "NVIDIA_NIM_API_KEY_5",
+] as const;
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -51,24 +65,36 @@ function getAssistantText(result: unknown) {
   return { responseBody, firstChoice, message, content };
 }
 
-async function requestFallbackModel(messages: Array<{ role: string; content: string }>) {
-  return fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://smarcityandhome.vercel.app",
-      "X-OpenRouter-Title": "Smart Home & City",
-    },
-    body: JSON.stringify({
-      model: fallbackFreeModel,
-      messages,
-      max_tokens: 1200,
-      temperature: 0.2,
-    }),
-    signal: AbortSignal.timeout(30_000),
-    cache: "no-store",
+function getNvidiaNimApiKeys() {
+  return apiKeyVariableNames.flatMap((name, index) => {
+    const value = process.env[name]?.trim();
+    return value ? [{ slot: index + 1, value }] : [];
   });
+}
+
+function getProviderError(value: unknown) {
+  const errorValue = asRecord(value)?.error;
+  const error = asRecord(errorValue);
+  return {
+    code: typeof error?.code === "string" ? error.code : "",
+    message:
+      typeof error?.message === "string"
+        ? error.message
+        : typeof errorValue === "string"
+          ? errorValue
+          : "",
+  };
+}
+
+function shouldTryNextApiKey(status: number, errorCode: string, errorMessage: string) {
+  return (
+    status === 401 ||
+    status === 403 ||
+    status === 429 ||
+    /insufficient[_ ]quota|quota[_ ]exceeded|rate[_ ]limit/i.test(
+      `${errorCode} ${errorMessage}`,
+    )
+  );
 }
 
 function isChatHistory(value: unknown): value is ChatMessage[] {
@@ -88,9 +114,13 @@ function isChatHistory(value: unknown): value is ChatMessage[] {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.OPENROUTER_API_KEY) {
+  const apiKeys = getNvidiaNimApiKeys();
+  if (apiKeys.length === 0) {
     return NextResponse.json(
-      { error: "OPENROUTER_API_KEY belum diatur pada environment Vercel." },
+      {
+        error:
+          "Isi minimal satu NVIDIA_NIM_API_KEY_1 sampai NVIDIA_NIM_API_KEY_5 di environment server.",
+      },
       { status: 503 },
     );
   }
@@ -158,101 +188,120 @@ export async function POST(request: Request) {
       { role: "user", content: body.message.trim() },
     ];
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://smarcityandhome.vercel.app",
-        "X-OpenRouter-Title": "Smart Home & City",
-      },
-      body: JSON.stringify({
-        model: freeModel,
-        messages,
-        max_tokens: 1200,
-        temperature: 0.2,
-      }),
-      signal: AbortSignal.timeout(30_000),
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      const errorBody: unknown = await response.json().catch(() => null);
-      console.error("OpenRouter request gagal:", {
-        status: response.status,
-        error:
-          typeof errorBody === "object" && errorBody !== null
-            ? (errorBody as Record<string, unknown>).error
-            : undefined,
-      });
+    const requestedModel =
+      process.env.NVIDIA_NIM_MODEL?.trim() || defaultNvidiaNimModel;
+    const model = freeNvidiaNimChatModels.find(
+      (freeModel) => freeModel === requestedModel,
+    );
+    if (!model) {
       return NextResponse.json(
         {
-          error:
-            response.status === 429
-              ? "Model gratis sedang mencapai batas penggunaan. Coba lagi beberapa saat."
-              : "OpenRouter gagal menjawab. Periksa API key dan pengaturan proyek OpenRouter.",
+          error: `NVIDIA_NIM_MODEL harus salah satu dari: ${freeNvidiaNimChatModels.join(", ")}.`,
         },
-        { status: response.status === 401 ? 503 : 502 },
+        { status: 503 },
       );
     }
 
-    const result: unknown = await response.json();
-    let { responseBody, firstChoice, message: assistantMessage, content } =
-      getAssistantText(result);
-    let responseModel =
-      typeof responseBody?.model === "string" ? responseBody.model : freeModel;
+    let response: Response | null = null;
+    let result: unknown = null;
+    let lastFailure: {
+      status: number;
+      keySlot: number;
+      code: string;
+      message: string;
+    } | null = null;
 
-    if (!content) {
-      console.error("OpenRouter mengembalikan pilihan tanpa teks:", {
-        model: responseModel,
-        finishReason: firstChoice?.finish_reason,
-        nativeFinishReason: firstChoice?.native_finish_reason,
-        messageFields: assistantMessage ? Object.keys(assistantMessage) : [],
-        generationId: response.headers.get("X-Generation-Id"),
+    for (const [index, apiKey] of apiKeys.entries()) {
+      const currentResponse = await fetch(nvidiaNimEndpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey.value}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: 1200,
+          temperature: 0.2,
+        }),
+        signal: AbortSignal.timeout(30_000),
+        cache: "no-store",
       });
 
-      const fallbackResponse = await requestFallbackModel(messages);
-      if (!fallbackResponse.ok) {
-        const fallbackError: unknown = await fallbackResponse.json().catch(() => null);
-        console.error("Model fallback OpenRouter gagal:", {
-          status: fallbackResponse.status,
-          model: fallbackFreeModel,
-          generationId: fallbackResponse.headers.get("X-Generation-Id"),
-          error: asRecord(asRecord(fallbackError)?.error)?.message,
-        });
-        return NextResponse.json(
-          {
-            error:
-              fallbackResponse.status === 429
-                ? "Model AI gratis sedang mencapai batas penggunaan. Coba lagi beberapa saat."
-                : "Model AI gratis sementara tidak tersedia. Coba kirim pertanyaan lagi.",
-          },
-          { status: 502 },
-        );
+      if (currentResponse.ok) {
+        response = currentResponse;
+        result = await currentResponse.json();
+        break;
       }
 
-      const fallbackResult: unknown = await fallbackResponse.json();
-      const fallback = getAssistantText(fallbackResult);
-      responseBody = fallback.responseBody;
-      firstChoice = fallback.firstChoice;
-      assistantMessage = fallback.message;
-      content = fallback.content;
-      responseModel =
-        typeof responseBody?.model === "string" ? responseBody.model : fallbackFreeModel;
+      const errorBody: unknown = await currentResponse.json().catch(() => null);
+      const providerError = getProviderError(errorBody);
+      lastFailure = {
+        status: currentResponse.status,
+        keySlot: apiKey.slot,
+        ...providerError,
+      };
 
-      if (!content) {
-        console.error("Model fallback OpenRouter juga tidak menghasilkan teks:", {
-          model: responseModel,
-          finishReason: firstChoice?.finish_reason,
-          nativeFinishReason: firstChoice?.native_finish_reason,
-          messageFields: assistantMessage ? Object.keys(assistantMessage) : [],
-          generationId: fallbackResponse.headers.get("X-Generation-Id"),
+      if (
+        shouldTryNextApiKey(
+          currentResponse.status,
+          providerError.code,
+          providerError.message,
+        ) &&
+        index < apiKeys.length - 1
+      ) {
+        console.warn("NVIDIA NIM key gagal; mencoba key berikutnya:", {
+          keySlot: apiKey.slot,
+          status: currentResponse.status,
+          code: providerError.code || undefined,
         });
-        return NextResponse.json(
-          { error: "Model AI gratis tidak menghasilkan jawaban. Silakan coba lagi." },
-          { status: 502 },
-        );
+        continue;
       }
+
+      break;
+    }
+
+    if (!response) {
+      console.error("NVIDIA NIM request gagal:", {
+        model,
+        status: lastFailure?.status,
+        keySlot: lastFailure?.keySlot,
+        code: lastFailure?.code || undefined,
+      });
+      const quotaReached =
+        lastFailure?.status === 429 ||
+        /insufficient[_ ]quota|quota[_ ]exceeded|rate[_ ]limit/i.test(
+          `${lastFailure?.code ?? ""} ${lastFailure?.message ?? ""}`,
+        );
+      const unauthorized =
+        lastFailure?.status === 401 || lastFailure?.status === 403;
+      return NextResponse.json(
+        {
+          error: quotaReached
+            ? "Kuota atau rate limit NVIDIA NIM tercapai untuk semua API key yang diisi."
+            : unauthorized
+              ? "NVIDIA NIM menolak API key. Periksa key yang diatur di environment server."
+              : `NVIDIA NIM gagal menjawab (HTTP ${lastFailure?.status ?? "tidak diketahui"}).`,
+        },
+        { status: quotaReached ? 429 : unauthorized ? 503 : 502 },
+      );
+    }
+
+    const { responseBody, firstChoice, message: assistantMessage, content } =
+      getAssistantText(result);
+    const responseModel =
+      typeof responseBody?.model === "string" ? responseBody.model : model;
+
+    if (!content) {
+      console.error("NVIDIA NIM mengembalikan pilihan tanpa teks:", {
+        model: responseModel,
+        finishReason: firstChoice?.finish_reason,
+        messageFields: assistantMessage ? Object.keys(assistantMessage) : [],
+      });
+      return NextResponse.json(
+        { error: "NVIDIA NIM tidak menghasilkan jawaban teks. Silakan coba lagi." },
+        { status: 502 },
+      );
     }
 
     return NextResponse.json(
@@ -275,7 +324,7 @@ export async function POST(request: Request) {
       {
         error: timedOut
           ? "Permintaan AI melewati batas waktu. Coba lagi."
-          : "Gagal membaca data sensor terbaru atau menghubungi OpenRouter.",
+          : "Gagal membaca data sensor terbaru atau menghubungi NVIDIA NIM.",
       },
       { status: timedOut ? 504 : 500 },
     );

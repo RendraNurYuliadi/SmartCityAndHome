@@ -1060,7 +1060,7 @@ export default function Home() {
                       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#b7f36b]/10 text-[#b7f36b]"><Bot size={20} /></span>
                       <div><h2 className="text-sm font-semibold">AI Monitoring ESP32</h2><p className="mt-1 text-[11px] text-[#89968e]">Konteks sensor terbaru dari MongoDB</p></div>
                     </div>
-                    <span className="rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] px-2.5 py-1 text-[10px] text-[#c7fa8f]">OpenRouter · Free</span>
+                    <span className="rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] px-2.5 py-1 text-[10px] text-[#c7fa8f]">NVIDIA NIM · Free</span>
                   </div>
                   <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
                     {chatEntries.length === 0 && (
@@ -1085,7 +1085,7 @@ export default function Home() {
                       </div>
                     ))}
                     {chatLoading && (
-                      <div className="flex items-center gap-2 text-xs text-[#a4b09f]"><LoaderCircle size={15} className="animate-spin" /> Mengambil data sensor terbaru lalu bertanya ke model gratis...</div>
+                      <div className="flex items-center gap-2 text-xs text-[#a4b09f]"><LoaderCircle size={15} className="animate-spin" /> Mengambil data sensor terbaru lalu bertanya ke NVIDIA NIM...</div>
                     )}
                   </div>
                   {chatError && <p className="mx-5 mb-2 flex items-center gap-2 text-xs text-[#f3b58a]"><X size={14} /> {chatError}</p>}
@@ -1103,7 +1103,7 @@ export default function Home() {
                         {chatLoading ? <LoaderCircle size={16} className="animate-spin" /> : <Send size={16} />}
                       </button>
                     </div>
-                    <p className="mt-2 px-1 text-[10px] text-[#718078]">Menggunakan router model gratis OpenRouter. Model gratis bisa mengalami batas penggunaan.</p>
+                    <p className="mt-2 px-1 text-[10px] text-[#718078]">Hanya model Free Endpoint NVIDIA NIM. Jika key terkena batas penggunaan, server mencoba key berikutnya yang sudah diatur.</p>
                   </form>
                 </article>
               </div>
