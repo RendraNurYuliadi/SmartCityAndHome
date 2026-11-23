@@ -707,12 +707,12 @@ export default function Home() {
     <main className="grid-lines min-h-screen">
       {showSplash && (
         <section
-          className="fixed inset-0 z-[100] flex min-h-screen items-center justify-center overflow-hidden bg-[#080d0a] px-5 py-10"
+          className="intro-screen fixed inset-0 z-[100] overflow-hidden bg-[#080d0a]"
           aria-label="Selamat datang"
         >
           <div className="splash-grid pointer-events-none absolute inset-0" />
-          <div className="splash-orb pointer-events-none absolute left-1/2 top-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#9fe85d]/[0.08] blur-[110px]" />
-          <div className="relative w-full max-w-2xl animate-[splash-in_.7s_ease-out_both] rounded-[2rem] border border-white/[0.1] bg-[#0e1511]/90 p-7 shadow-[0_35px_120px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:p-12">
+          <div className="intro-noise pointer-events-none absolute inset-0" />
+          <div className="relative h-full w-full max-w-[1440px] animate-[splash-in_.7s_ease-out_both] px-5 py-7 sm:px-10 sm:py-10 lg:px-14">
             <div className="flex items-center gap-3">
               <span className="splash-logo flex h-12 w-12 items-center justify-center rounded-2xl bg-[#b7f36b] text-[#11180e] shadow-[0_0_38px_rgba(183,243,107,0.2)]">
                 <Activity size={25} strokeWidth={2.4} />
@@ -730,8 +730,8 @@ export default function Home() {
               <p className="flex items-center gap-2 text-[11px] font-medium tracking-[0.22em] text-[#a5b497]">
                 <span className="h-px w-6 bg-[#b7f36b]" /> SMART HOME &amp; CITY
               </p>
-              <h1 className="mt-5 text-4xl font-semibold leading-[1.13] tracking-tight text-white sm:text-6xl">
-                Kota lebih<br /><span className="text-[#b7f36b]">cerdas.</span> Data lebih<br className="hidden sm:block" /> dekat.
+              <h1 className="mt-5 text-[clamp(3.1rem,6.5vw,6.8rem)] font-semibold leading-[0.91] tracking-[-0.065em] text-white">
+                Kota <span className="intro-outline">hidup.</span><br />Data <span className="text-[#b7f36b]">bergerak.</span>
               </h1>
               <p className="mt-5 max-w-lg text-sm leading-7 text-[#9ba79e] sm:text-base">
                 Pantau sensor, baca peringatan, dan kendalikan ESP32 dari satu dashboard—dengan bantuan AI untuk memahami kondisi perangkat.
@@ -775,6 +775,27 @@ export default function Home() {
                 <div className="h-full w-full origin-left animate-[dashboard-loading_5s_linear_forwards] rounded-full bg-[#b7f36b]" />
               </div>
             )}
+            <div className="intro-world pointer-events-none absolute -right-[2%] bottom-[-2%] h-[76%] w-[58%] max-lg:opacity-35" aria-hidden="true">
+              <div className="world-glow absolute left-[44%] top-[43%] h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full" />
+              <div className="orbit-ring orbit-ring-1 absolute left-[44%] top-[48%] h-[21rem] w-[21rem] -translate-x-1/2 -translate-y-1/2 rounded-full" />
+              <div className="orbit-ring orbit-ring-2 absolute left-[44%] top-[48%] h-[31rem] w-[31rem] -translate-x-1/2 -translate-y-1/2 rounded-full" />
+              <div className="floating-node node-temperature absolute left-[14%] top-[25%]"><Thermometer size={18} /><span>28°C</span></div>
+              <div className="floating-node node-water absolute right-[8%] top-[20%]"><Droplets size={18} /><span>STABLE</span></div>
+              <div className="floating-node node-car absolute bottom-[22%] left-[10%]"><CarFront size={18} /><span>2 / 3</span></div>
+              <div className="floating-node node-wifi absolute bottom-[14%] right-[10%]"><Wifi size={18} /><span>ONLINE</span></div>
+              <div className="city-core absolute left-[24%] top-[30%] h-[53%] w-[52%]">
+                <div className="building building-main"><span /><span /><span /><span /><span /></div>
+                <div className="building building-side"><span /><span /><span /></div>
+                <div className="building building-small"><span /><span /></div>
+                <div className="road-road"><span className="road-line" /><div className="intro-car"><span /><span /></div></div>
+                <div className="street-light street-light-a"><i /></div>
+                <div className="street-light street-light-b"><i /></div>
+                <div className="city-pulse pulse-a" /><div className="city-pulse pulse-b" />
+              </div>
+              <div className="drone"><span className="drone-body"><Activity size={12} /></span><i className="rotor rotor-a" /><i className="rotor rotor-b" /></div>
+              <div className="data-line data-line-a"><span /></div>
+              <div className="data-line data-line-b"><span /></div>
+            </div>
           </div>
           <style jsx>{`@keyframes splash-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
         </section>
