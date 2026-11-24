@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   Activity,
@@ -20,12 +20,16 @@ import {
   Menu,
   MessageCircle,
   MessageSquare,
+  Mic,
+  MicOff,
   Radio,
   RefreshCw,
   Send,
   ShieldAlert,
   Thermometer,
   Vibrate,
+  Volume2,
+  VolumeX,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -67,6 +71,30 @@ type ChatEntry = {
   content: string;
   transient?: boolean;
 };
+
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  0: { transcript: string };
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 const pageArtwork: Record<Page, { image: string; kicker: string; description: string }> = {
   dashboard: {
@@ -462,6 +490,13 @@ export default function Home() {
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speakingEntryIndex, setSpeakingEntryIndex] = useState<number | null>(null);
+  const [autoSpeakAnswers, setAutoSpeakAnswers] = useState(true);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionBaseTextRef = useRef("");
+  const recognitionTranscriptRef = useRef("");
+  const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const enteringDashboard = true;
@@ -469,6 +504,16 @@ export default function Home() {
   useEffect(() => {
     const timer = window.setTimeout(() => setShowSplash(false), 5000);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      window.speechSynthesis?.cancel();
+      if (autoSendTimerRef.current) {
+        clearTimeout(autoSendTimerRef.current);
+      }
+    };
   }, []);
 
   const refresh = useCallback(async () => {
@@ -591,6 +636,37 @@ export default function Home() {
     }
   };
 
+  const speakAssistantText = (content: string, entryIndex: number | null = null) => {
+    if (!("speechSynthesis" in window)) {
+      setError("Text-to-speech tidak didukung oleh browser ini.");
+      return;
+    }
+
+    const plainText = content
+      .replace(/[*_`>#]/g, "")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!plainText) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(plainText);
+    utterance.lang = "id-ID";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+
+    const indonesianVoice = window.speechSynthesis
+      .getVoices()
+      .find((voice) => voice.lang.toLowerCase().startsWith("id"));
+    if (indonesianVoice) utterance.voice = indonesianVoice;
+
+    utterance.onend = () => setSpeakingEntryIndex(null);
+    utterance.onerror = () => setSpeakingEntryIndex(null);
+    setSpeakingEntryIndex(entryIndex);
+    window.speechSynthesis.speak(utterance);
+  };
+
   const appendAssistantMessage = (content: string) => {
     setChatEntries((current) =>
       [
@@ -598,6 +674,100 @@ export default function Home() {
         { role: "assistant" as const, content },
       ].slice(-60),
     );
+    if (autoSpeakAnswers) {
+      speakAssistantText(content);
+    }
+  };
+
+  const toggleSpeechRecognition = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const Recognition =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
+    if (!Recognition) {
+      setError("Speech-to-text tidak didukung oleh browser ini. Gunakan Chrome atau Edge.");
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = "id-ID";
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.onstart = () => {
+      recognitionBaseTextRef.current = chatInput;
+      recognitionTranscriptRef.current = "";
+      setIsListening(true);
+    };
+    recognition.onresult = (event) => {
+      let finalText = "";
+      let interimText = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (result.isFinal) finalText += result[0].transcript;
+        else interimText += result[0].transcript;
+      }
+      const transcript = `${finalText}${interimText}`.trim();
+      const base = recognitionBaseTextRef.current.trim();
+      const recognizedText =
+        base && transcript ? `${base} ${transcript}` : base || transcript;
+      recognitionTranscriptRef.current = recognizedText;
+      setChatInput(recognizedText);
+
+      if (autoSendTimerRef.current) {
+        clearTimeout(autoSendTimerRef.current);
+      }
+      autoSendTimerRef.current = setTimeout(() => {
+        const message = recognitionTranscriptRef.current.trim();
+        recognitionTranscriptRef.current = "";
+        if (message) {
+          void sendChatMessageText(message);
+        }
+      }, 1200);
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      if (autoSendTimerRef.current) {
+        clearTimeout(autoSendTimerRef.current);
+        autoSendTimerRef.current = null;
+      }
+      const message = recognitionTranscriptRef.current.trim();
+      recognitionTranscriptRef.current = "";
+      if (message) {
+        void sendChatMessageText(message);
+      }
+    };
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      if (event.error !== "aborted") {
+        setError("Speech-to-text gagal mengenali suara. Periksa izin mikrofon.");
+      }
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      setError("Speech-to-text tidak dapat dimulai.");
+    }
+  };
+
+  const toggleAssistantSpeech = (entryIndex: number, content: string) => {
+    if (speakingEntryIndex === entryIndex) {
+      window.speechSynthesis.cancel();
+      setSpeakingEntryIndex(null);
+      return;
+    }
+    speakAssistantText(content, entryIndex);
   };
 
   const sendChatMessageText = async (rawMessage: string) => {
@@ -1142,7 +1312,25 @@ export default function Home() {
                       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#b7f36b]/10 text-[#b7f36b]"><Bot size={20} /></span>
                       <div><h2 className="text-sm font-semibold">AI Monitoring ESP32</h2><p className="mt-1 text-[11px] text-[#89968e]">Konteks sensor terbaru dari MongoDB</p></div>
                     </div>
-                    <span className="rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] px-2.5 py-1 text-[10px] text-[#c7fa8f]">Sensor + AI</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (autoSpeakAnswers) {
+                          window.speechSynthesis?.cancel();
+                          setSpeakingEntryIndex(null);
+                        }
+                        setAutoSpeakAnswers((current) => !current);
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] transition ${
+                        autoSpeakAnswers
+                          ? "border-[#b7f36b]/20 bg-[#b7f36b]/[0.08] text-[#c7fa8f]"
+                          : "border-white/[0.08] bg-white/[0.03] text-[#89968e]"
+                      }`}
+                      aria-label={autoSpeakAnswers ? "Matikan jawaban otomatis berbicara" : "Aktifkan jawaban otomatis berbicara"}
+                    >
+                      {autoSpeakAnswers ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                      {autoSpeakAnswers ? "Suara AI aktif" : "Suara AI mati"}
+                    </button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
                     {chatEntries.length === 0 && (
@@ -1152,7 +1340,15 @@ export default function Home() {
                         <p className="mt-2 text-xs leading-5 text-[#89968e]">AI memahami pin, sensor, ambang, dan data ESP32. Snapshot terbaru dibaca dari server setiap kali Anda bertanya.</p>
                         <div className="mt-5 flex flex-wrap justify-center gap-2">
                           {["Bagaimana kondisi sensor sekarang?", "Apakah ada peringatan banjir?", "Slot parkir mana yang kosong?"].map((suggestion) => (
-                            <button key={suggestion} onClick={() => setChatInput(suggestion)} className="rounded-full border border-white/[0.08] px-3 py-2 text-[11px] text-[#aab5ad] hover:bg-white/[0.04]">{suggestion}</button>
+                            <button
+                              key={suggestion}
+                              type="button"
+                              onClick={() => void sendChatMessageText(suggestion)}
+                              disabled={chatLoading}
+                              className="rounded-full border border-white/[0.08] px-3 py-2 text-[11px] text-[#aab5ad] hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {suggestion}
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -1161,7 +1357,18 @@ export default function Home() {
                       <div key={`${entry.role}-${index}`} className={`flex ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-6 ${entry.role === "user" ? "whitespace-pre-wrap bg-[#b7f36b] text-[#17200f]" : "chat-markdown border border-white/[0.07] bg-white/[0.035] text-[#dce5de]"}`}>
                           {entry.role === "assistant" ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.content}</ReactMarkdown>
+                            <>
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.content}</ReactMarkdown>
+                              <button
+                                type="button"
+                                onClick={() => toggleAssistantSpeech(index, entry.content)}
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] px-2.5 py-1 text-[10px] text-[#c7fa8f] hover:bg-[#b7f36b]/10"
+                                aria-label={speakingEntryIndex === index ? "Hentikan jawaban suara" : "Dengarkan jawaban"}
+                              >
+                                {speakingEntryIndex === index ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                                {speakingEntryIndex === index ? "Berhenti" : "Dengarkan"}
+                              </button>
+                            </>
                           ) : entry.content}
                         </div>
                       </div>
@@ -1171,6 +1378,19 @@ export default function Home() {
                     )}
                   </div>
                   <form onSubmit={sendChatMessage} className="border-t border-white/[0.07] p-4">
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {["Status sensor", "Lampu jalan", "Slot parkir"].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => void sendChatMessageText(suggestion)}
+                          disabled={chatLoading}
+                          className="rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] px-3 py-1.5 text-[10px] text-[#c7fa8f] hover:bg-[#b7f36b]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
                     <div className="flex gap-2 rounded-xl border border-white/[0.1] bg-[#0b100d] p-2 focus-within:border-[#b7f36b]/35">
                       <input
                         value={chatInput}
@@ -1180,6 +1400,20 @@ export default function Home() {
                         className="min-w-0 flex-1 bg-transparent px-2 text-sm text-white outline-none placeholder:text-[#66736a]"
                         disabled={chatLoading}
                       />
+                      <button
+                        type="button"
+                        onClick={toggleSpeechRecognition}
+                        disabled={chatLoading}
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                          isListening
+                            ? "border-red-400/40 bg-red-400/15 text-red-300"
+                            : "border-white/[0.08] bg-white/[0.04] text-[#c7fa8f] hover:bg-white/[0.08]"
+                        }`}
+                        aria-label={isListening ? "Hentikan input suara" : "Mulai input suara"}
+                        title={isListening ? "Hentikan input suara" : "Speech-to-text"}
+                      >
+                        {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                      </button>
                       <button type="submit" disabled={!chatInput.trim() || chatLoading} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#b7f36b] text-[#17200f] transition hover:bg-[#c7fa8a] disabled:cursor-not-allowed disabled:opacity-40" aria-label="Kirim pertanyaan">
                         {chatLoading ? <LoaderCircle size={16} className="animate-spin" /> : <Send size={16} />}
                       </button>
