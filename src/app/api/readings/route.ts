@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import {
   getMessagesCollection,
   getReadingsCollection,
@@ -150,6 +151,11 @@ function createAlertMessages(
 
 export async function GET(request: Request) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Silakan login terlebih dahulu." }, { status: 401 });
+    }
+
     const requestedLimit = Number(new URL(request.url).searchParams.get("limit") ?? maxReadings);
     const limit =
       Number.isInteger(requestedLimit) && requestedLimit > 0

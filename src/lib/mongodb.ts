@@ -10,6 +10,7 @@ const readingsCollectionName = "sensor_readings";
 const cappedReadingsCollectionName = "sensor_readings_latest50";
 const commandsCollectionName = "device_commands";
 const messagesCollectionName = "sensor_messages";
+const usersCollectionName = "users";
 const maxReadings = 50;
 
 const readingsValidator: Document = {
@@ -237,6 +238,22 @@ async function ensureCollections(db: Db) {
       await db
         .collection(messagesCollectionName)
         .createIndex({ isRead: 1, occurredAt: -1 });
+
+      try {
+        await db.createCollection(usersCollectionName);
+      } catch (error) {
+        if (
+          typeof error !== "object" ||
+          error === null ||
+          !("code" in error) ||
+          error.code !== 48
+        ) {
+          throw error;
+        }
+      }
+      await db
+        .collection(usersCollectionName)
+        .createIndex({ email: 1 }, { unique: true });
     })().catch((error: unknown) => {
       mongoGlobal._mongoSetupPromise = undefined;
       throw error;
@@ -280,6 +297,13 @@ export type DeviceCommand = {
   updatedAt: Date;
 };
 
+export type AuthUser = {
+  email: string;
+  passwordHash: string;
+  role: "admin" | "public";
+  createdAt: Date;
+};
+
 export type SensorMessage = {
   deviceId: string;
   type: string;
@@ -308,6 +332,12 @@ export async function getMessagesCollection(): Promise<Collection<SensorMessage>
   const db = await getDatabase();
   await ensureCollections(db);
   return db.collection<SensorMessage>(messagesCollectionName);
+}
+
+export async function getUsersCollection(): Promise<Collection<AuthUser>> {
+  const db = await getDatabase();
+  await ensureCollections(db);
+  return db.collection<AuthUser>(usersCollectionName);
 }
 
 export async function closeMongoConnection() {

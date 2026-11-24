@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/auth";
+import { canRoleExecuteChatAction } from "@/lib/auth-policy";
 import {
   getCommandsCollection,
   getReadingsCollection,
@@ -9,6 +11,7 @@ import {
   getLightStatusAnswer,
   getLightStatusTarget,
   getParkingStatusAnswer,
+  isServoControlRequest,
   needsLightCommandClarification,
   type ChatRouteAction,
 } from "@/lib/chat-command-routing";
@@ -148,6 +151,23 @@ function isChatHistory(value: unknown): value is ChatMessage[] {
 }
 
 export async function POST(request: Request) {
+  let user: Awaited<ReturnType<typeof getAuthenticatedUser>> = null;
+  try {
+    user = await getAuthenticatedUser(request);
+  } catch (error) {
+    console.error(
+      "Gagal memverifikasi akun chatbot:",
+      error instanceof Error ? error.name : "UnknownError",
+    );
+    return NextResponse.json(
+      { error: "Sesi pengguna tidak dapat diverifikasi." },
+      { status: 500 },
+    );
+  }
+  if (!user) {
+    return NextResponse.json({ error: "Silakan login terlebih dahulu." }, { status: 401 });
+  }
+
   let input: unknown;
   try {
     input = await request.json();
@@ -180,12 +200,38 @@ export async function POST(request: Request) {
           content: message.content.slice(0, maxHistoryMessageCharacters),
         }))
     : [];
+  if (isServoControlRequest(body.message.trim())) {
+    return NextResponse.json(
+      {
+        answer:
+          "Servo suhu tidak dapat dikendalikan melalui chatbot. Gunakan kontrol manual di menu Kontrol ESP32; fitur ini hanya tersedia untuk akun public.",
+        model: "device-command",
+        refreshedAt: new Date().toISOString(),
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const lightIntent = getLightCommandIntent(body.message.trim(), history);
   if (lightIntent) {
     const isRgb = lightIntent.type === "rgb";
     const routeAction: ChatRouteAction = isRgb
       ? { type: "set-rgb-led", on: lightIntent.on }
       : { type: "set-street-light", on: lightIntent.on };
+    if (!canRoleExecuteChatAction(user.role, routeAction)) {
+      return NextResponse.json(
+        {
+          answer:
+            user.role === "admin"
+              ? "Pengingat: lampu RGB rumah hanya dapat dikendalikan akun public. Admin hanya dapat mengontrol lampu jalan; perintah RGB tidak dijalankan."
+              : "Pengingat: akun public dapat mengontrol lampu RGB rumah. Lampu jalan hanya dapat dikontrol admin; perintah ini tidak dijalankan.",
+          model: "device-command",
+          refreshedAt: new Date().toISOString(),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     return NextResponse.json(
       {
         answer: `Baik, saya akan ${lightIntent.on ? "menyalakan" : "mematikan"} ${
@@ -276,6 +322,13 @@ export async function POST(request: Request) {
 
     const messages = [
       { role: "system", content: sensorAssistantPrompt },
+      {
+        role: "system",
+        content:
+          user.role === "public"
+            ? "Role pengguna saat ini public. Public dapat menyalakan dan mematikan lampu RGB rumah melalui chat atau menu Kontrol ESP32. Public dapat mengontrol servo suhu secara manual hanya dari menu Kontrol ESP32; chatbot tidak boleh mengirim atau mengklaim perintah servo. Kontrol lampu jalan hanya tersedia untuk admin."
+            : "Role pengguna saat ini admin. Admin hanya dapat mengontrol lampu jalan melalui chat atau menu Kontrol ESP32. Lampu RGB hanya dapat dikendalikan akun public. Servo suhu hanya dapat dikontrol secara manual oleh akun public dan tidak pernah melalui chatbot.",
+      },
       {
         role: "system",
         content: `Snapshot sensor terbaru dari MongoDB (JSON):\n${JSON.stringify(sensorSnapshot)}`,

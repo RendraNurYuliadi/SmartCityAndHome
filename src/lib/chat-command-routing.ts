@@ -15,6 +15,8 @@ const turnOnPattern =
   /\b(?:nyalakan|nayalakn|nyalakn|hidupkan|aktifkan|nyalain|hidupin|turn\s+on|switch\s+on|web\s+on)\b/i;
 const turnOffPattern =
   /\b(?:matikan|padamkan|nonaktifkan|turn\s+off|switch\s+off|web\s+off)\b/i;
+const servoControlVerbPattern =
+  /\b(?:buka|tutup|gerakkan|atur|setel|nyalakan|matikan|aktifkan|nonaktifkan|open|close|web\s+on|web\s+off)\b/i;
 
 export function normalizeChatMessage(message: string) {
   return message
@@ -115,6 +117,17 @@ export function getLightCommandIntent(
   return target === "rgb"
     ? { type: "rgb", on: command.on }
     : { type: "street-light", on: command.on };
+}
+
+export function isServoControlRequest(message: string) {
+  const normalizedMessage = normalizeChatMessage(message);
+  return (
+    /\bservo\b/i.test(normalizedMessage) &&
+    servoControlVerbPattern.test(normalizedMessage) &&
+    !/[?？]|\b(?:apakah|bagaimana|kenapa|mengapa|cara|mau\s+tanya|ingin\s+tahu)\b/i.test(
+      normalizedMessage,
+    )
+  );
 }
 
 export function needsLightCommandClarification(

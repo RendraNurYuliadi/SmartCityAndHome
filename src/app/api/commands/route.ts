@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/auth";
+import { canRoleUpdateDeviceCommands } from "@/lib/auth-policy";
 import { getCommandsCollection } from "@/lib/mongodb";
 
 export const runtime = "nodejs";
@@ -29,12 +31,29 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Silakan login terlebih dahulu." }, { status: 401 });
+    }
+
     const body: unknown = await request.json();
     if (typeof body !== "object" || body === null || Array.isArray(body)) {
       return NextResponse.json({ error: "Format perintah perangkat tidak valid." }, { status: 400 });
     }
 
     const payload = body as Record<string, unknown>;
+    if (!canRoleUpdateDeviceCommands(user.role, payload)) {
+      return NextResponse.json(
+        {
+          error:
+            user.role === "admin"
+              ? "Akun admin hanya boleh mengontrol lampu jalan."
+              : "Akun public hanya boleh mengontrol lampu RGB dan servo suhu secara manual.",
+        },
+        { status: 403 },
+      );
+    }
+
     const updates: {
       rgbLedOn?: boolean;
       streetLightOverride?: boolean | null;

@@ -9,8 +9,9 @@
 #include <ArduinoJson.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
-#include "esp32_secrets.h"
 
+const char* const WIFI_SSID = "GANTI_DENGAN_NAMA_WIFI_2_4_GHZ";
+const char* const WIFI_PASSWORD = "GANTI_DENGAN_PASSWORD_WIFI";
 const char* API_READINGS_URL = "https://smarcityandhome.vercel.app/api/readings";
 const char* API_COMMANDS_URL = "https://smarcityandhome.vercel.app/api/commands";
 const char* DEVICE_ID = "esp32-smart-city";

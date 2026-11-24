@@ -5,6 +5,7 @@ import {
   getLightCommandIntent,
   getLightStatusAnswer,
   getParkingStatusAnswer,
+  isServoControlRequest,
   needsLightCommandClarification,
 } from "./chat-command-routing";
 
@@ -96,6 +97,18 @@ describe("getLightCommandIntent", () => {
       false,
     );
     assert.match(getLightCommandClarification(), /Belum ada perintah yang diubah/);
+  });
+});
+
+describe("isServoControlRequest", () => {
+  it("recognizes servo commands for a manual-control-only response", () => {
+    assert.equal(isServoControlRequest("Tolong buka servo suhu"), true);
+    assert.equal(isServoControlRequest("Matikan servo sekarang"), true);
+  });
+
+  it("does not treat servo questions as commands", () => {
+    assert.equal(isServoControlRequest("Bagaimana cara kerja servo suhu?"), false);
+    assert.equal(isServoControlRequest("Atur servo ke otomatis"), true);
   });
 });
 

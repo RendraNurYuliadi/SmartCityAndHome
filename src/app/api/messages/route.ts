@@ -1,15 +1,21 @@
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import { getMessagesCollection } from "@/lib/mongodb";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Silakan login terlebih dahulu." }, { status: 401 });
+    }
+
     const collection = await getMessagesCollection();
     const [messages, unreadCount] = await Promise.all([
-      collection.find({}).sort({ occurredAt: -1 }).limit(100).toArray(),
+      collection.find({}).sort({ occurredAt: -1 }).toArray(),
       collection.countDocuments({ isRead: false }),
     ]);
 
@@ -35,6 +41,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Silakan login terlebih dahulu." }, { status: 401 });
+    }
+
     const body: unknown = await request.json();
     if (typeof body !== "object" || body === null) {
       return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 });

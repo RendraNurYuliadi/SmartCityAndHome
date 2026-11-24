@@ -8,15 +8,15 @@ Menu Galeri Noventra menampilkan dokumentasi prototipe proyek IoT Kelompok 3, pr
 
 Tujuan aplikasi ini adalah menyatukan data sensor dan beberapa kendali perangkat ESP32 dalam satu dashboard web. Sistem prototipe memantau suhu, kelembapan, parkir, gerakan, cahaya, jarak, level air, dan getaran. ESP32 juga mengendalikan aktuator seperti palang, lampu jalan, lampu lalu lintas, servo suhu, LED RGB, dan alarm.
 
-Alamat web yang dikonfigurasi pada firmware saat ini adalah [smarcityandhome.vercel.app](https://smarcityandhome.vercel.app/). Aplikasi dapat dibuka melalui browser desktop maupun ponsel. Saat pertama dibuka, halaman pengantar Noventra tampil sekitar lima detik sebelum dashboard muncul. Aplikasi saat ini tidak meminta login.
+Alamat web yang dikonfigurasi pada firmware saat ini adalah [smarcityandhome.vercel.app](https://smarcityandhome.vercel.app/). Aplikasi dapat dibuka melalui browser desktop maupun ponsel. Splash screen tampil sekitar lima detik, lalu pengguna dapat login atau mendaftar sebelum masuk dashboard. Setelah login, aplikasi menampilkan animasi loading singkat sebelum dashboard. Akun baru otomatis memiliki role public.
 
 ### Cara menggunakan web
 
-1. Buka alamat web di atas dan tunggu dashboard tampil.
+1. Buka alamat web di atas, lalu login atau daftar akun public.
 2. Periksa indikator **Sistem online** di header dan **API terhubung** di sidebar untuk status API. Status ESP32 **Terhubung** berarti sudah ada pembacaan tersimpan; cocokkan waktu pembaruan terakhir untuk melihat kapan data itu diterima.
 3. Pilih menu di sidebar untuk berpindah halaman. Di ponsel, buka sidebar dengan tombol menu.
 4. Gunakan **Perbarui data** untuk meminta data terbaru secara manual. Dashboard juga mengambil data otomatis setiap 1,5 detik.
-5. Untuk mengubah keluaran perangkat, buka **Kontrol ESP32** dan pilih kendali yang sesuai. Pastikan ESP32 aktif dan terhubung ke server.
+5. Untuk mengubah keluaran perangkat, buka **Kontrol ESP32**. Akun public dapat mengendalikan LED RGB dan servo suhu; akun admin hanya dapat mengendalikan lampu jalan.
 
 ### Menu, section, dan widget
 
@@ -35,19 +35,21 @@ Halaman ringkasan kondisi terbaru perangkat. Widget yang tersedia:
 
 #### Kontrol ESP32
 
-Berisi tiga kartu kendali:
+Kartu kendali mengikuti role:
 
-- **Lampu RGB** menampilkan kondisi LED biru GPIO19 dan tombol untuk menyalakan atau mematikannya dari web.
-- **Lampu jalan** menampilkan status lampu, nilai LDR, dan mode kontrol. Pilih **Otomatis** untuk mengikuti LDR, **Web ON** untuk menyalakan, atau **Web OFF** untuk mematikan.
-- **Servo suhu** menampilkan posisi servo dan suhu DHT11. Pilih **Otomatis** untuk mengikuti aturan firmware, **Web ON** untuk membuka, atau **Web OFF** untuk menutup.
+- **Lampu RGB** hanya ditampilkan untuk public; tombol dapat menyalakan atau mematikan LED GPIO19.
+- **Lampu jalan** hanya ditampilkan untuk admin; pilih **Otomatis** untuk mengikuti LDR, **Web ON** untuk menyalakan, atau **Web OFF** untuk mematikan.
+- **Servo suhu** hanya ditampilkan untuk public; kontrol manual dapat mengikuti mode otomatis DHT11, membuka, atau menutup servo GPIO23.
 
-Pada lampu jalan dan servo suhu, pilihan **Web ON/OFF** adalah override. Pilih **Otomatis** lagi untuk menyerahkan kendali ke sensor. Perubahan web diteruskan ke ESP32 melalui API; hasil fisiknya bergantung pada ESP32 dan koneksinya.
+Pada lampu jalan dan servo suhu, pilihan **Web ON/OFF** adalah override. Pilih **Otomatis** lagi untuk menyerahkan kendali ke sensor. Servo suhu hanya dapat dikontrol manual dari menu public dan tidak dapat dipicu lewat chatbot. Perubahan web diteruskan ke ESP32 melalui API; hasil fisiknya bergantung pada ESP32 dan koneksinya.
+
+Role public mengendalikan RGB dan servo suhu dari menu ini. Role admin hanya mengendalikan lampu jalan.
 
 #### Message
 
 Inbox ini berisi peringatan yang dibuat ketika kondisi berubah menjadi aktif: banjir, getaran, gerakan PIR, suhu di atas 28 °C, atau seluruh slot parkir terisi. Setiap kartu menampilkan judul, rincian, waktu kejadian, tingkat keparahan, dan status sudah/belum dibaca. Badge di sidebar menunjukkan jumlah yang belum dibaca.
 
-Gunakan **Tandai dibaca** pada sebuah pesan atau **Tandai semua dibaca** untuk memperbarui statusnya. API mengembalikan paling banyak 100 pesan terbaru. Peringatan dibuat saat transisi kondisi menjadi aktif, bukan pada setiap pembacaan selama kondisi tersebut masih aktif.
+Gunakan **Tandai dibaca** pada sebuah pesan atau **Tandai semua dibaca** untuk memperbarui statusnya. Semua role yang login melihat inbox yang sama tanpa batas jumlah pesan. Peringatan dibuat saat transisi kondisi menjadi aktif, bukan pada setiap pembacaan selama kondisi tersebut masih aktif.
 
 #### Chatbot AI
 
@@ -55,7 +57,7 @@ Chatbot menjawab pertanyaan tentang kondisi perangkat dan sensor. Tombol saran d
 
 Percakapan hanya disimpan sementara di halaman browser dan tidak menjadi arsip pesan sensor. Request hanya membawa delapan pesan percakapan terakhir (maksimal 1.200 karakter per pesan) agar chat panjang tidak membengkakkan konteks. Jika API key terkena rate limit/kuota atau ditolak, server mencoba key berikutnya yang diatur. Jika seluruh layanan gagal, UI menampilkan pesan bantuan singkat; detail teknis tetap dicatat di log server. Fitur ini membutuhkan setidaknya satu `NVIDIA_NIM_API_KEY_1` sampai `NVIDIA_NIM_API_KEY_5` pada server.
 
-Chat memiliki rute deterministik untuk perintah lampu rumah/RGB dan lampu jalan, termasuk perintah singkat yang merujuk ke target pada pesan sebelumnya; target yang tidak jelas akan diklarifikasi tanpa mengubah perangkat. Status lampu dan parkir dijawab dari telemetry MongoDB dengan label dashboard yang benar, bukan ditebak model. Pertanyaan sensor lainnya tetap menggunakan RAG. Perintah lampu jalan mengirim Web ON/OFF, termasuk mengganti mode otomatis sebelumnya. Mode otomatis hanya tersedia di menu Kontrol ESP32; chat tidak mengaktifkan atau menawarkan mode tersebut. Pesan konfirmasi menandakan perintah tersimpan, dan ESP32 menerapkannya saat polling berikutnya.
+Chat memiliki rute deterministik untuk perintah lampu rumah/RGB dan lampu jalan, termasuk perintah singkat yang merujuk ke target pada pesan sebelumnya; target yang tidak jelas akan diklarifikasi tanpa mengubah perangkat. Status lampu dan parkir dijawab dari telemetry MongoDB dengan label dashboard yang benar, bukan ditebak model. Pertanyaan sensor lainnya tetap menggunakan RAG. Public dapat mengontrol RGB melalui chat; admin dapat mengontrol lampu jalan. Jika admin meminta kontrol RGB, chatbot memberi pengingat tanpa menjalankan perintah. Servo suhu tidak pernah dipicu lewat chatbot; hanya public yang dapat mengontrolnya secara manual dari menu Kontrol ESP32. Pesan konfirmasi menandakan perintah tersimpan, dan ESP32 menerapkannya saat polling berikutnya.
 
 #### Galeri Noventra
 
@@ -116,7 +118,7 @@ Pada dashboard, label Slot A dan Slot B ditukar: `parking.slotAOccupied` (IR A/G
 ## Menjalankan lokal
 
 1. Pastikan MongoDB berjalan dan dapat diakses.
-2. Salin `.env.example` menjadi `.env.local`; sesuaikan `MONGODB_URI` dan `MONGODB_DB` bila perlu.
+2. Salin `.env.example` menjadi `.env.local`; sesuaikan `MONGODB_URI` dan `MONGODB_DB`, lalu ganti `AUTH_SESSION_SECRET` dengan rahasia acak minimal 32 karakter.
 3. Instal dependensi dengan `npm install`.
 4. Siapkan collections dengan `npm run db:setup`. Aplikasi juga membuat collections saat pertama kali menerima request.
 5. Jalankan `npm run dev`, lalu buka `http://localhost:3000` pada komputer server. Untuk ESP32 lokal, gunakan IPv4 komputer tersebut (lihat `ipconfig`) dan port `3000`.
@@ -128,12 +130,14 @@ Collection pembacaan aktif adalah capped collection MongoDB dengan `max: 50`. Sa
 ## API
 
 - `POST /api/readings` — menerima satu pembacaan sensor dari ESP32.
-- `GET /api/readings?limit=50` — membaca paling banyak 50 data terbaru.
+- `GET /api/readings?limit=50` — membaca paling banyak 50 data terbaru setelah login.
 - `GET /api/commands` — membaca status LED dan override perangkat.
-- `POST /api/commands` menerima satu atau beberapa field: `rgbLedOn` (`boolean`), `streetLightOverride` (`boolean | null`), dan `temperatureServoOverride` (`boolean | null`).
-- `GET /api/messages` — mengambil inbox dan jumlah pesan belum dibaca.
-- `POST /api/messages` dengan `{"ids":["<message-id>"]}` atau `{"all":true}` — menandai pesan sudah dibaca.
-- `POST /api/chat` — mengambil snapshot sensor langsung dari MongoDB lalu mengirim pertanyaan dan snapshot tersebut ke NVIDIA NIM.
+- `POST /api/commands` — memerlukan login; admin hanya dapat mengirim `streetLightOverride`, sedangkan public hanya dapat mengirim `rgbLedOn` atau `temperatureServoOverride`.
+- `GET /api/messages` — memerlukan login; mengambil semua inbox dan jumlah pesan belum dibaca.
+- `POST /api/messages` dengan `{"ids":["<message-id>"]}` atau `{"all":true}` — memerlukan login dan menandai pesan sudah dibaca.
+- `POST /api/chat` — memerlukan login; public dapat mengontrol RGB dan admin dapat mengontrol lampu jalan. Servo suhu tidak dikendalikan lewat chatbot.
+- `POST /api/auth/register` — membuat akun public (role tidak dapat dipilih dari request).
+- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` — mengelola sesi login.
 
 Pesan dibuat saat sensor berubah menjadi kondisi banjir, getaran, gerakan, suhu di atas 28 °C, atau parkir penuh. Dashboard memeriksa data dan badge pesan setiap 1,5 detik; membuka pesan menandainya sudah dibaca dan mengurangi angka badge.
 
@@ -153,7 +157,7 @@ Key hanya dibaca server-side; tidak pernah dikirim ke browser. Setiap pertanyaan
 
 Custom system prompt chatbot dapat diedit di `src/lib/chat-prompt.ts`. Instruksi format jawabannya menggunakan Markdown; dashboard merender heading, teks tebal, daftar, tabel, dan blok kode dengan styling khusus.
 
-API tidak memakai autentikasi sesuai kebutuhan proyek ini. Endpoint yang dipublikasikan dapat menerima data/perintah dari siapa saja; gunakan hanya pada jaringan/lingkungan yang sesuai.
+API dashboard memerlukan sesi login dengan cookie `HttpOnly`, `SameSite=Lax`, dan role yang diverifikasi server. Password user disimpan sebagai hash scrypt. Registrasi publik selalu membuat role `public`; role tidak dapat dipilih dari formulir. ESP32 tetap memakai `POST /api/readings` untuk mengirim telemetri dan `GET /api/commands` untuk mengambil perintah agar firmware yang ada tetap kompatibel.
 
 ## Deploy ke Vercel
 
@@ -162,22 +166,24 @@ API tidak memakai autentikasi sesuai kebutuhan proyek ini. Endpoint yang dipubli
 3. Isi Vercel Project → Settings → Environment Variables:
    - `MONGODB_URI`: connection string Atlas.
    - `MONGODB_DB`: `smart_home_city`.
+   - `AUTH_SESSION_SECRET`: rahasia acak minimal 32 karakter; buat dengan `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`. Gunakan nilai berbeda untuk lokal dan Vercel, jangan commit atau bagikan.
    - `NVIDIA_NIM_API_KEY_1` sampai `NVIDIA_NIM_API_KEY_5`: API key NVIDIA NIM (server-side; isi key yang dimiliki, tanpa prefix `NEXT_PUBLIC_`).
    - `NVIDIA_NIM_MODEL`: ID model NVIDIA NIM dari daftar Free Endpoint yang diizinkan; default `nvidia/nemotron-3.5-lightning-30b-a3b`.
-4. Pastikan akses jaringan/IP Vercel ke MongoDB diizinkan, lalu deploy. Collection capped dibuat otomatis pada request pertama.
+4. Pastikan akses jaringan/IP Vercel ke MongoDB diizinkan, lalu deploy. Collection aplikasi dan `users` dibuat otomatis pada request pertama.
 5. Pastikan `API_READINGS_URL` dan `API_COMMANDS_URL` pada firmware menunjuk ke domain deployment HTTPS, lalu set `API_USE_HTTPS` ke `1`. Firmware saat ini dikonfigurasi ke `https://smarcityandhome.vercel.app`.
+6. Untuk membuat admin pertama, jalankan `npm.cmd run auth:create-admin` pada terminal interaktif Windows dengan `MONGODB_URI` yang mengarah ke database deployment serta `AUTH_SESSION_SECRET` lokal yang sudah diatur. Password dimasukkan tanpa ditampilkan; perintah ini juga dapat mempromosikan akun public yang sudah terdaftar.
 
 ## Menghubungkan ESP32
 
-Sketch firmware ada di `Code_iot_esp_32_Update/Code_iot_esp_32_Update.ino`. Sebelum upload, salin `Code_iot_esp_32_Update/esp32_secrets.example.h` menjadi `Code_iot_esp_32_Update/esp32_secrets.h` dan isi kredensial Wi-Fi. File rahasia tersebut diabaikan Git.
+Sketch firmware ada di `Code_iot_esp_32_Update/Code_iot_esp_32_Update.ino`. Isi `WIFI_SSID` dan `WIFI_PASSWORD` langsung di bagian atas file sketch sebelum upload. ESP32 klasik memerlukan jaringan Wi-Fi 2,4 GHz.
 
 1. Pasang library ArduinoJson, DHT sensor library, LiquidCrystal I2C, dan ESP32Servo di Arduino IDE.
-2. Salin file contoh secrets ke `esp32_secrets.h` di folder sketch dan isi nama Wi-Fi 2,4 GHz serta password.
+2. Isi nama Wi-Fi 2,4 GHz dan password pada konstanta `WIFI_SSID` dan `WIFI_PASSWORD` di file sketch.
 3. Buka `Code_iot_esp_32_Update/Code_iot_esp_32_Update.ino` di Arduino IDE.
 4. Pilih board dan port ESP32, lalu upload.
 5. Pastikan ESP32 tersambung ke internet. Mode kontrol lampu jalan dan servo suhu dapat dipilih dari menu Kontrol ESP32 di dashboard.
 
-Untuk mengganti Wi-Fi, edit nilai `WIFI_SSID` dan `WIFI_PASSWORD` di `esp32_secrets.h`.
+Untuk mengganti Wi-Fi, edit nilai `WIFI_SSID` dan `WIFI_PASSWORD` di file sketch. Jangan publikasikan sketch yang berisi kredensial Wi-Fi.
 
 Firmware mempertahankan sensor yang sudah ada pada sketch awal (ultrasonik, PIR, IR parkir, LDR, water-level, SW-420, DHT11, lampu lalu lintas, servo, buzzer, dan LCD) serta mengirim nilainya ke API. Servo palang kembali ke posisi awal 3 detik setelah pemicu sensor berhenti; servo suhu dan lampu jalan memiliki mode otomatis serta override web.
 

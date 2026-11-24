@@ -17,6 +17,7 @@ import {
   Images,
   Lightbulb,
   LoaderCircle,
+  LogOut,
   Menu,
   MessageCircle,
   MessageSquare,
@@ -70,6 +71,11 @@ type ChatEntry = {
   role: "user" | "assistant";
   content: string;
   transient?: boolean;
+};
+type SessionUser = {
+  id: string;
+  email: string;
+  role: "admin" | "public";
 };
 
 type SpeechRecognitionResultLike = {
@@ -212,6 +218,215 @@ const projectImages = [
     alt: "Perspektif menyeluruh maket lintasan dan persimpangan kota",
   },
 ];
+
+function AuthenticationScreen({
+  initialError,
+  onAuthenticated,
+}: {
+  initialError: string;
+  onAuthenticated: (user: SessionUser) => void;
+}) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(initialError);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        mode === "register" ? "/api/auth/register" : "/api/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        },
+      );
+      const result: { user?: SessionUser; error?: string } = await response.json();
+      if (!response.ok || !result.user) {
+        throw new Error(result.error || "Autentikasi gagal.");
+      }
+      onAuthenticated(result.user);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Autentikasi gagal.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="grid-lines flex min-h-screen items-center justify-center px-5 py-10">
+      <section className="w-full max-w-md rounded-3xl border border-white/[0.08] bg-[#101714]/95 p-7 shadow-2xl sm:p-9">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#b7f36b] text-[#121a10]">
+            <Activity size={22} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold">NOVENTRA</p>
+            <p className="text-[10px] tracking-[0.16em] text-[#87948b]">SMART CITY SYSTEM</p>
+          </div>
+        </div>
+        <h1 className="mt-8 text-2xl font-semibold">
+          {mode === "login" ? "Masuk ke dashboard" : "Daftar akun public"}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-[#89968e]">
+          {mode === "login"
+            ? "Masuk untuk melihat sensor dan menggunakan fitur sesuai role akun."
+            : "Akun baru otomatis mendapat akses public. Role admin hanya dapat dibuat oleh administrator."}
+        </p>
+        <form onSubmit={submit} className="mt-6 space-y-4">
+          <label className="block text-xs text-[#b8c4bb]">
+            Email
+            <input
+              type="email"
+              required
+              maxLength={254}
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-white/[0.1] bg-[#0b100d] px-4 py-3 text-sm text-white outline-none focus:border-[#b7f36b]/40"
+            />
+          </label>
+          <label className="block text-xs text-[#b8c4bb]">
+            Password
+            <input
+              type="password"
+              required
+              minLength={8}
+              maxLength={256}
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-white/[0.1] bg-[#0b100d] px-4 py-3 text-sm text-white outline-none focus:border-[#b7f36b]/40"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="rounded-xl border border-[#f5a76e]/20 bg-[#f5a76e]/[0.07] px-3 py-2 text-xs text-[#f3b58a]">
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#b7f36b] px-4 py-3 text-sm font-semibold text-[#17200f] hover:bg-[#c7fa8a] disabled:cursor-wait disabled:opacity-60"
+          >
+            {loading && <LoaderCircle size={16} className="animate-spin" />}
+            {mode === "login" ? "Masuk" : "Buat akun public"}
+          </button>
+        </form>
+        <p className="mt-5 text-center text-xs text-[#89968e]">
+          {mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setMode((current) => current === "login" ? "register" : "login");
+              setError("");
+            }}
+            className="font-medium text-[#c7fa8f] hover:underline"
+          >
+            {mode === "login" ? "Daftar public" : "Kembali ke login"}
+          </button>
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function SplashScreen() {
+  return (
+    <main className="grid-lines min-h-screen">
+      <section
+        className="intro-screen fixed inset-0 z-[100] overflow-hidden bg-[#080d0a]"
+        aria-label="Selamat datang"
+      >
+        <div className="splash-grid pointer-events-none absolute inset-0" />
+        <div className="intro-noise pointer-events-none absolute inset-0" />
+        <div className="relative h-full w-full max-w-[1440px] animate-[splash-in_.7s_ease-out_both] px-5 py-7 sm:px-10 sm:py-10 lg:px-14">
+          <div className="flex items-center gap-3">
+            <span className="splash-logo flex h-12 w-12 items-center justify-center rounded-2xl bg-[#b7f36b] text-[#11180e] shadow-[0_0_38px_rgba(183,243,107,0.2)]">
+              <Activity size={25} strokeWidth={2.4} />
+            </span>
+            <div>
+              <p className="text-sm font-semibold tracking-wide">NOVEN<span className="text-[#b7f36b]">TRA</span></p>
+              <p className="mt-0.5 text-[10px] tracking-[0.2em] text-[#86948a]">SMART CITY SYSTEM</p>
+            </div>
+            <span className="ml-auto hidden items-center gap-2 rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.05] px-3 py-1.5 text-[10px] text-[#c7fa8f] sm:flex">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#b7f36b]" /> LIVE MONITORING
+            </span>
+          </div>
+
+          <div className="mt-12 max-w-xl">
+            <p className="flex items-center gap-2 text-[11px] font-medium tracking-[0.22em] text-[#a5b497]">
+              <span className="h-px w-6 bg-[#b7f36b]" /> SMART HOME &amp; CITY
+            </p>
+            <h1 className="mt-5 text-[clamp(3.1rem,6.5vw,6.8rem)] font-semibold leading-[0.91] tracking-[-0.065em] text-white">
+              Kota <span className="intro-outline">hidup.</span><br />Data <span className="text-[#b7f36b]">bergerak.</span>
+            </h1>
+            <p className="mt-5 max-w-lg text-sm leading-7 text-[#9ba79e] sm:text-base">
+              Pantau sensor, baca peringatan, dan kendalikan ESP32 dari satu dashboard—dengan bantuan AI untuk memahami kondisi perangkat.
+            </p>
+          </div>
+
+          <div className="mt-9 grid gap-2 sm:grid-cols-3">
+            {[
+              { label: "Monitoring", value: "Data sensor realtime", icon: Radio },
+              { label: "Notifikasi", value: "Peringatan perangkat", icon: MessageSquare },
+              { label: "AI Assistant", value: "Analisis kondisi ESP32", icon: Bot },
+            ].map(({ label, value, icon: Icon }) => (
+              <div key={label} className="splash-feature rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+                <Icon size={16} className="text-[#b7f36b]" />
+                <p className="mt-3 text-[10px] tracking-[0.12em] text-[#76837a]">{label}</p>
+                <p className="mt-1 text-xs font-medium text-[#dce5de]">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
+            <span id="splash-status" role="status" aria-live="polite" className="text-[11px] text-[#7d8a81]">
+              Menyiapkan halaman login...
+            </span>
+          </div>
+          <div
+            className="mt-5 h-1 overflow-hidden rounded-full bg-white/10"
+            role="progressbar"
+            aria-label="Menyiapkan halaman login"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext="Intro NOVENTRA sebelum login"
+          >
+            <div className="h-full w-full origin-left animate-[dashboard-loading_5s_linear_forwards] rounded-full bg-[#b7f36b]" />
+          </div>
+          <div className="intro-world pointer-events-none absolute -right-[2%] bottom-[-2%] h-[76%] w-[58%] max-lg:opacity-35" aria-hidden="true">
+            <div className="world-glow absolute left-[44%] top-[43%] h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full" />
+            <div className="orbit-ring orbit-ring-1 absolute left-[44%] top-[48%] h-[21rem] w-[21rem] -translate-x-1/2 -translate-y-1/2 rounded-full" />
+            <div className="orbit-ring orbit-ring-2 absolute left-[44%] top-[48%] h-[31rem] w-[31rem] -translate-x-1/2 -translate-y-1/2 rounded-full" />
+            <div className="floating-node node-temperature absolute left-[14%] top-[25%]"><Thermometer size={18} /><span>28°C</span></div>
+            <div className="floating-node node-water absolute right-[8%] top-[20%]"><Droplets size={18} /><span>STABLE</span></div>
+            <div className="floating-node node-car absolute bottom-[22%] left-[10%]"><CarFront size={18} /><span>2 / 3</span></div>
+            <div className="floating-node node-wifi absolute bottom-[14%] right-[10%]"><Wifi size={18} /><span>ONLINE</span></div>
+            <div className="city-core absolute left-[24%] top-[30%] h-[53%] w-[52%]">
+              <div className="building building-main"><span /><span /><span /><span /><span /></div>
+              <div className="building building-side"><span /><span /><span /></div>
+              <div className="building building-small"><span /><span /></div>
+              <div className="road-road"><span className="road-line" /><div className="intro-car"><span /><span /></div></div>
+              <div className="street-light street-light-a"><i /></div>
+              <div className="street-light street-light-b"><i /></div>
+              <div className="city-pulse pulse-a" /><div className="city-pulse pulse-b" />
+            </div>
+            <div className="drone"><span className="drone-body"><Activity size={12} /></span><i className="rotor rotor-a" /><i className="rotor rotor-b" /></div>
+            <div className="data-line data-line-a"><span /></div>
+            <div className="data-line data-line-b"><span /></div>
+          </div>
+        </div>
+        <style jsx>{`@keyframes splash-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
+      </section>
+    </main>
+  );
+}
 
 function GalleryContent() {
   return (
@@ -475,6 +690,9 @@ function StatusPill({ active, onText, offText }: { active: boolean; onText: stri
 }
 
 export default function Home() {
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
   const [page, setPage] = useState<Page>("dashboard");
   const [readings, setReadings] = useState<Reading[]>([]);
   const [deviceCommands, setDeviceCommands] = useState<DeviceCommands>({
@@ -499,6 +717,8 @@ export default function Home() {
   const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const dashboardLoadingTimerRef = useRef<number | null>(null);
   const enteringDashboard = true;
 
   useEffect(() => {
@@ -507,11 +727,49 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const checkSession = async () => {
+      try {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        if (response.status === 401) return;
+        const result: { user?: SessionUser; error?: string } = await response.json();
+        if (!response.ok || !result.user) {
+          throw new Error(result.error || "Sesi login tidak dapat diperiksa.");
+        }
+        if (
+          result.user.role !== "admin" &&
+          result.user.role !== "public"
+        ) {
+          throw new Error("Role akun tidak valid.");
+        }
+        if (active) setCurrentUser(result.user);
+      } catch (cause) {
+        if (active) {
+          setAuthError(
+            cause instanceof Error
+              ? cause.message
+              : "Sesi login tidak dapat diperiksa.",
+          );
+        }
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    };
+    void checkSession();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       recognitionRef.current?.stop();
       window.speechSynthesis?.cancel();
       if (autoSendTimerRef.current) {
         clearTimeout(autoSendTimerRef.current);
+      }
+      if (dashboardLoadingTimerRef.current) {
+        window.clearTimeout(dashboardLoadingTimerRef.current);
       }
     };
   }, []);
@@ -523,6 +781,15 @@ export default function Home() {
         fetch("/api/commands", { cache: "no-store" }),
         fetch("/api/messages", { cache: "no-store" }),
       ]);
+      if (
+        readingsResponse.status === 401 ||
+        messagesResponse.status === 401
+      ) {
+        setCurrentUser(null);
+        setOnline(false);
+        setAuthError("Sesi login berakhir. Silakan masuk kembali.");
+        return;
+      }
       if (!readingsResponse.ok || !commandResponse.ok || !messagesResponse.ok) {
         throw new Error("Tidak dapat terhubung ke API atau MongoDB.");
       }
@@ -543,6 +810,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (authLoading || !currentUser) return;
+
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -554,7 +823,7 @@ export default function Home() {
       active = false;
       clearTimeout(timer);
     };
-  }, [refresh]);
+  }, [refresh, authLoading, currentUser]);
 
   const latest = readings[0];
   const temperatureServoOpen =
@@ -850,6 +1119,21 @@ export default function Home() {
     void sendChatMessageText(chatInput);
   };
 
+  const logout = async () => {
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Logout gagal. Silakan coba lagi.");
+      setCurrentUser(null);
+      setChatEntries([]);
+      setChatInput("");
+      setPage("dashboard");
+      setError("");
+      setAuthError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Logout gagal.");
+    }
+  };
+
   const selectPage = (nextPage: Page) => {
     setPage(nextPage);
     setMobileMenuOpen(false);
@@ -872,6 +1156,56 @@ export default function Home() {
         : page === "messages"
           ? "Message"
           : "AI Sensor";
+
+  if (showSplash) return <SplashScreen />;
+
+  if (authLoading) {
+    return (
+      <main className="grid-lines flex min-h-screen items-center justify-center px-5">
+        <div className="flex items-center gap-3 text-sm text-[#aab5ad]">
+          <LoaderCircle size={18} className="animate-spin text-[#b7f36b]" />
+          Memeriksa sesi akun...
+        </div>
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <AuthenticationScreen
+        initialError={authError}
+        onAuthenticated={(user) => {
+          setCurrentUser(user);
+          setDashboardLoading(true);
+          if (dashboardLoadingTimerRef.current) {
+            window.clearTimeout(dashboardLoadingTimerRef.current);
+          }
+          dashboardLoadingTimerRef.current = window.setTimeout(() => {
+            setDashboardLoading(false);
+            dashboardLoadingTimerRef.current = null;
+          }, 500);
+          setAuthError("");
+          setError("");
+        }}
+      />
+    );
+  }
+
+  if (dashboardLoading) {
+    return (
+      <main className="grid-lines flex min-h-screen items-center justify-center px-5">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#b7f36b]/10 text-[#b7f36b]">
+            <LoaderCircle size={26} className="animate-spin" />
+          </span>
+          <div>
+            <p className="text-sm font-medium text-white">Menyiapkan dashboard</p>
+            <p className="mt-1 text-xs text-[#89968e]">Memuat data sensor dan perangkat...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="grid-lines min-h-screen">
@@ -1076,7 +1410,21 @@ export default function Home() {
                 {online ? <Wifi size={14} className="text-[#b7f36b]" /> : <WifiOff size={14} className="text-[#f5a76e]" />}
                 {online ? "Sistem online" : "Offline"}
               </span>
-              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.1] bg-[#171f1a] text-xs font-semibold text-[#c3d2c7]">SC</span>
+              <span className="hidden max-w-36 truncate text-right text-[10px] text-[#aab5ad] sm:block">
+                <span className="block font-semibold text-[#c7fa8f]">
+                  {currentUser.role === "admin" ? "Admin" : "Public"}
+                </span>
+                {currentUser.email}
+              </span>
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/[0.08] px-2.5 text-xs text-[#c3d2c7] hover:bg-white/[0.05]"
+                aria-label="Keluar dari akun"
+              >
+                <LogOut size={14} />
+                <span className="hidden sm:inline">Keluar</span>
+              </button>
             </div>
           </header>
 
@@ -1088,7 +1436,7 @@ export default function Home() {
                   {page === "dashboard" ? <>Kondisi <span className="text-[#b7f36b]">saat ini</span></> : page === "control" ? <>Kontrol <span className="text-[#b7f36b]">perangkat</span></> : page === "messages" ? <>Pesan <span className="text-[#b7f36b]">sensor</span></> : page === "gallery" ? <>Galeri <span className="text-[#b7f36b]">Noventra</span></> : <>Chatbot <span className="text-[#b7f36b]">Gen AI</span></>}
                 </h1>
                 <p className="mt-2 text-sm text-[#8d9a91]">
-                  {page === "dashboard" ? "Ringkasan sensor dan aktivitas ESP32 secara realtime." : page === "control" ? "Kendalikan LED RGB, lampu jalan LDR, dan servo suhu DHT11." : page === "messages" ? "Baca dan kelola peringatan yang dikirim dari sensor ESP32." : page === "gallery" ? "Kenali visi proyek, dokumentasi maket, dan anggota tim Kelompok 3." : "Tanya kondisi ESP32; data terbaru dibaca langsung sebelum AI menjawab."}
+                  {page === "dashboard" ? "Ringkasan sensor dan aktivitas ESP32 secara realtime." : page === "control" ? currentUser.role === "admin" ? "Kendalikan lampu jalan LDR." : "Kendalikan LED RGB rumah dan servo suhu DHT11." : page === "messages" ? "Baca dan kelola peringatan yang dikirim dari sensor ESP32." : page === "gallery" ? "Kenali visi proyek, dokumentasi maket, dan anggota tim Kelompok 3." : "Tanya kondisi ESP32; data terbaru dibaca langsung sebelum AI menjawab."}
                 </p>
               </div>
               <button onClick={() => void refresh()} className="flex items-center gap-2 rounded-xl border border-white/[0.1] px-3.5 py-2.5 text-xs text-[#c2ccc5] transition hover:bg-white/[0.05]">
@@ -1180,7 +1528,8 @@ export default function Home() {
                 </div>
               </>
             ) : page === "control" ? (
-              <div className="grid gap-5 xl:grid-cols-3">
+              <div className={`grid gap-5 ${currentUser.role === "admin" ? "xl:grid-cols-1" : "xl:grid-cols-2"}`}>
+                {currentUser.role === "public" && (
                 <article className="rounded-2xl border border-white/[0.08] bg-[#101714]/90 p-5 sm:p-6">
                   <div className="flex items-center gap-3">
                     <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${rgbLedOn ? "bg-[#b7f36b]/15 text-[#c5f78b]" : "bg-white/[0.06] text-[#9aa69e]"}`}><Lightbulb size={21} /></span>
@@ -1191,7 +1540,11 @@ export default function Home() {
                     <div><p className="text-sm font-semibold">{rgbLedOn ? "Lampu menyala" : "Lampu mati"}</p><p className="mt-1 text-[11px] text-[#87948b]">Kontrol langsung dari web</p></div>
                   </div>
                   <button
-                    onClick={() => void updateDeviceCommands({ rgbLedOn: !rgbLedOn })}
+                    onClick={() =>
+                      void updateDeviceCommands({
+                        rgbLedOn: !rgbLedOn,
+                      })
+                    }
                     disabled={loadingCommand}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-semibold transition disabled:cursor-wait disabled:opacity-60 ${rgbLedOn ? "border border-white/[0.12] bg-white/[0.06] text-white hover:bg-white/[0.1]" : "bg-[#b7f36b] text-[#17200f] hover:bg-[#c7fa8a]"}`}
                   >
@@ -1199,7 +1552,9 @@ export default function Home() {
                     {rgbLedOn ? "Matikan RGB" : "Nyalakan RGB"}
                   </button>
                 </article>
+                )}
 
+                {currentUser.role === "admin" && (
                 <article className="rounded-2xl border border-white/[0.08] bg-[#101714]/90 p-5 sm:p-6">
                   <div className="flex items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f7d879]/10 text-[#f7d879]"><Lightbulb size={21} /></span>
@@ -1216,7 +1571,9 @@ export default function Home() {
                   />
                   <p className="mt-3 text-[10px] leading-5 text-[#7f8c83]">LDR tetap bekerja di mode otomatis. Perintah web diterapkan langsung tanpa jeda.</p>
                 </article>
+                )}
 
+                {currentUser.role === "public" && (
                 <article className="rounded-2xl border border-white/[0.08] bg-[#101714]/90 p-5 sm:p-6">
                   <div className="flex items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#83c9ff]/10 text-[#83c9ff]"><Gauge size={21} /></span>
@@ -1233,6 +1590,7 @@ export default function Home() {
                   />
                   <p className="mt-3 text-[10px] leading-5 text-[#7f8c83]">DHT11 tetap mengatur servo di mode otomatis. Perintah web diterapkan langsung tanpa jeda.</p>
                 </article>
+                )}
               </div>
             ) : page === "gallery" ? (
               <GalleryContent />
@@ -1321,15 +1679,16 @@ export default function Home() {
                         }
                         setAutoSpeakAnswers((current) => !current);
                       }}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] transition ${
+                      className={`inline-flex h-9 w-9 items-center justify-center rounded-full border transition ${
                         autoSpeakAnswers
                           ? "border-[#b7f36b]/20 bg-[#b7f36b]/[0.08] text-[#c7fa8f]"
                           : "border-white/[0.08] bg-white/[0.03] text-[#89968e]"
                       }`}
                       aria-label={autoSpeakAnswers ? "Matikan jawaban otomatis berbicara" : "Aktifkan jawaban otomatis berbicara"}
+                      aria-pressed={autoSpeakAnswers}
+                      title={autoSpeakAnswers ? "Matikan suara otomatis jawaban AI" : "Aktifkan suara otomatis jawaban AI"}
                     >
-                      {autoSpeakAnswers ? <Volume2 size={12} /> : <VolumeX size={12} />}
-                      {autoSpeakAnswers ? "Suara AI aktif" : "Suara AI mati"}
+                      {autoSpeakAnswers ? <Volume2 size={16} /> : <VolumeX size={16} />}
                     </button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
@@ -1362,11 +1721,11 @@ export default function Home() {
                               <button
                                 type="button"
                                 onClick={() => toggleAssistantSpeech(index, entry.content)}
-                                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] px-2.5 py-1 text-[10px] text-[#c7fa8f] hover:bg-[#b7f36b]/10"
+                                className="mt-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#b7f36b]/15 bg-[#b7f36b]/[0.06] text-[#c7fa8f] hover:bg-[#b7f36b]/10"
                                 aria-label={speakingEntryIndex === index ? "Hentikan jawaban suara" : "Dengarkan jawaban"}
+                                title={speakingEntryIndex === index ? "Hentikan jawaban suara" : "Dengarkan jawaban"}
                               >
-                                {speakingEntryIndex === index ? <VolumeX size={12} /> : <Volume2 size={12} />}
-                                {speakingEntryIndex === index ? "Berhenti" : "Dengarkan"}
+                                {speakingEntryIndex === index ? <VolumeX size={14} /> : <Volume2 size={14} />}
                               </button>
                             </>
                           ) : entry.content}
